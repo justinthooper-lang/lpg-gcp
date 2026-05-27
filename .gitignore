@@ -1,0 +1,43 @@
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.cursor/
+*.swp
+
+# Secrets — NEVER commit these
+*.json
+!package.json
+!package-lock.json
+.env
+.env.*
+*.pem
+*.key
+credentials/
+
+# Cloud SQL Auth Proxy binary
+cloud-sql-proxy
+cloud_sql_proxy
+
+# Terraform (we'll need this soon)
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Logs
+*.log
+# Data exports & dumps — NEVER commit
+*.csv
+*.dump
+*.backup
+seed_real.sql
+seed_*.sql
+!seed_fake.sql
+*.sqlite
+*.db
+
+# Query output
+query_output*
+*.out
