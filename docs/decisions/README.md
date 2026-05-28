@@ -22,6 +22,7 @@ the system looks the way it does.
 | [0005](./0005-order-items-fk-to-products.md) | Webhook ingestion FK race conditions | Accepted with caveats |
 | [0006](./0006-public-repo.md) | Keep the repo public | Accepted |
 | [0007](./0007-collapse-account-contact-into-customers.md) | Collapse Account + Contact into a single `shift4.customers` table | Accepted |
+| [0008](./0008-cloud-sql-provisioning.md) | Cloud SQL dev instance — cheapest viable configuration | Accepted |
 
 ## How to add a new ADR
 

@@ -18,9 +18,12 @@ way.
 ## Current state
 
 - **GCP project:** `lpg-dev-496820` (dev environment; no prod yet)
-- **Database design:** Cloud SQL Postgres 16, schema defined in
-  [`schema.sql`](./schema.sql). Not yet provisioned — schema file is the
-  source of truth until we stand up the actual Cloud SQL instance.
+- **Database:** Cloud SQL Postgres 16 instance `lpg-dev` in `us-west1`,
+  schema applied and verified. **Stopped by default between sessions** to
+  save cost — start before each session via
+  `gcloud sql instances patch lpg-dev --activation-policy=ALWAYS`.
+  See [`docs/architecture.md`](./docs/architecture.md) for full session
+  start/stop procedure.
 - **Storefront integration:** Shift4Shop webhooks → `shift4.*` mirror
   tables. Webhook handler not built yet.
 - **Back-office:** vendors, vendor SKUs, and bill-of-materials tables
@@ -67,18 +70,23 @@ Every working session should end with a doc update if anything changed:
 new ADR for new decisions, edits to architecture.md if the design shifted,
 this README's "Current state" updated to reflect reality.
 
-## Running the schema locally (not yet wired up)
+## Running the schema
 
-The schema is designed to apply cleanly via `psql` against a Postgres 16
-database. Once Cloud SQL is provisioned, the workflow will be:
+See [`docs/architecture.md`](./docs/architecture.md) for the canonical
+local Postgres and Cloud SQL connection procedures. Short version:
 
+**Cloud SQL (preferred for normal dev work):**
 ```bash
-# Connect via Cloud SQL Auth Proxy (TBD)
-psql -h 127.0.0.1 -U lpg_admin -d lpg < schema.sql
+gcloud sql instances patch lpg-dev --activation-policy=ALWAYS
+cloud-sql-proxy lpg-dev-496820:us-west1:lpg-dev   # dedicated terminal tab
+psql -h 127.0.0.1 -U postgres -d lpg
 ```
 
-For local development, a Docker Postgres works the same way. Not set up
-yet — flagged here as a known next step.
+**Local Postgres (offline iteration):**
+```bash
+brew services start postgresql@16
+psql -d lpg
+```
 
 ## License
 

@@ -171,23 +171,73 @@ Planned, not designed yet. Likely flows:
 - PO generation → email to vendor (`lpg.vendors.po_email`)
 - RGA → email / printable PDF for customer
 
-## Local development
+## Database deployments
 
-The schema applies cleanly to an empty Postgres 16 database via
-`psql -d lpg -f schema.sql`. Verified locally on 2026-05-28 — all 8
-tables, triggers, indexes, and constraints landed without errors.
+The schema runs in two places: a local Postgres for offline iteration
+and Cloud SQL for the real GCP-hosted instance. Both apply the same
+`schema.sql`.
 
-Local setup on macOS Apple Silicon:
+### Cloud SQL (preferred for normal dev work)
 
+**Instance:** `lpg-dev` in `us-west1` (Oregon)
+**Tier:** `db-f1-micro` (shared-core, ~$10/mo at 24/7)
+**Edition:** Enterprise
+**Version:** Postgres 16.13
+**Connection:** via Cloud SQL Auth Proxy
+**Default state:** STOPPED between sessions to save cost
+**Provisioning rationale:** [ADR-0008](./decisions/0008-cloud-sql-provisioning.md)
+
+**Start of session:**
 ```bash
-brew install postgresql@16
-brew services start postgresql@16
-createdb lpg
-psql -d lpg -f schema.sql
+# 1. Start the instance (takes ~1-2 min to become RUNNABLE)
+gcloud sql instances patch lpg-dev --activation-policy=ALWAYS
+
+# 2. In a dedicated terminal tab, run the Auth Proxy. Keep it open.
+cloud-sql-proxy lpg-dev-496820:us-west1:lpg-dev
+
+# 3. In your main tab, connect.
+psql -h 127.0.0.1 -U postgres -d lpg
 ```
 
-The local install uses `trust` auth (no password) for local connections —
-fine for development. Cloud SQL will use IAM auth.
+**End of session:**
+```bash
+# 1. Exit psql
+\q
+
+# 2. Ctrl+C the Auth Proxy in its tab
+
+# 3. Stop the instance — drops billing to storage-only (~$0.30/day)
+gcloud sql instances patch lpg-dev --activation-policy=NEVER
+```
+
+**Important details:**
+- The `postgres` user on Cloud SQL is **near-superuser, not full
+  superuser.** Google reserves the actual superuser role for managing
+  the instance. You can create databases, schemas, roles, tables, and
+  install extensions from an approved list. You cannot bypass certain
+  security policies or alter system catalogs. Note the `lpg=>` (not
+  `lpg=#`) prompt in psql — that's how you can tell.
+- Password is stored in 1Password. If lost, reset with
+  `gcloud sql users set-password postgres --instance=lpg-dev --prompt-for-password`.
+- Always stop the instance between sessions. Forgetting costs $0.30/day
+  in compute on top of storage.
+
+### Local Postgres (offline iteration)
+
+```bash
+brew services start postgresql@16
+psql -d lpg
+# work
+brew services stop postgresql@16   # frees port 5432 if you want to use the proxy
+```
+
+Local install uses `trust` auth (no password) for local connections —
+fine for development. Verified locally on 2026-05-28 (8 tables,
+triggers, indexes, constraints all apply cleanly).
+
+**Conflict warning:** local Postgres and Cloud SQL Auth Proxy both
+default to listening on port 5432. Run one or the other at a time,
+or pass `--port 5433` to the proxy.
 
 ## Known issues / open questions
 
@@ -205,7 +255,10 @@ These are not solved problems. Listed here so they're visible.
    different `shift4_customer_id` values. This is faithful to Shift4
    and intentional — deduplication, if needed, is a downstream concern,
    not an ingestion concern.
-3. **No webhook handler yet.** Schema-only project until we build the
-   Cloud Run service that ingests from Shift4.
-4. **No Cloud SQL instance yet.** Schema is verified-applyable locally
-   but hasn't been provisioned on GCP.
+3. **No webhook handler yet.** Schema applies to both local and Cloud
+   SQL, but nothing populates the tables. The Cloud Run service that
+   ingests Shift4 webhooks is the next major build.
+4. **Password auth, not IAM auth.** Cloud SQL supports IAM database
+   authentication, which would eliminate the postgres password
+   handling entirely. We chose password for setup simplicity; switching
+   to IAM is a future ADR when we add additional users.
