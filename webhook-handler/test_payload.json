@@ -1,0 +1,40 @@
+{
+    "InvoiceNumberPrefix": "PO",
+    "InvoiceNumber": 31990,
+    "OrderID": 31990,
+    "CustomerID": 11875,
+    "OrderDate": "2026-05-29T10:30:00",
+    "OrderStatusID": 1,
+    "BillingFirstName": "Patricia",
+    "BillingLastName": "Dougherty",
+    "BillingCompany": "",
+    "BillingAddress": "123 Main St",
+    "BillingCity": "Temecula",
+    "BillingState": "CA",
+    "BillingZipCode": "92590",
+    "BillingCountry": "United States",
+    "BillingEmail": "pdougherty@example.com",
+    "ShipToFirstName": "Patricia",
+    "ShipToLastName": "Dougherty",
+    "ShipToAddress": "123 Main St",
+    "ShipToCity": "Temecula",
+    "ShipToState": "CA",
+    "ShipToZipCode": "92590",
+    "ShipToCountry": "United States",
+    "OrderAmount": 156.78,
+    "SalesTax": 12.30,
+    "InvoiceShipping": 15.99,
+    "OrderDiscount": 0,
+    "Comments": "Please leave at front door",
+    "ShipmentList": [],
+    "OrderItemList": [
+      {
+        "ItemID": "20012-CL-4F",
+        "ItemDescription": "12in Clear Globe, 4F Neck",
+        "ItemQuantity": 12,
+        "ItemUnitPrice": 13.99,
+        "ItemUnitCost": 12.40
+      }
+    ]
+  }
+  

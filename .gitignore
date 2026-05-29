@@ -10,6 +10,7 @@
 *.json
 !package.json
 !package-lock.json
+!webhook-handler/test_payload.json
 .env
 .env.*
 *.pem
