@@ -13,6 +13,8 @@ from fastapi import FastAPI
 
 from shift4_models import ORDER_STATUS_MAP, Shift4OrderPayload
 
+from ingest import ingest_order
+
 app = FastAPI(title="lpg-webhook-handler", version="0.2.0")
 
 
@@ -59,16 +61,19 @@ def shift4_order_created(payload: Shift4OrderPayload):
             "order_id": payload.shift4_order_id,
         }
 
-    # Status is one of New, Processing, Shipped.
-    # Layer 3 will write to DB here. For now, we acknowledge.
+    # Status is one of New, Processing, Shipped. Persist to DB.
+    try:
+        result = ingest_order(payload)
+    except Exception as exc:
+        # Log and re-raise as a 500. FastAPI returns a generic error to
+        # Shift4, which will retry per their webhook policy.
+        # Layer 4 will replace this with structured logging.
+        print(f"INGEST ERROR for order {payload.shift4_order_id}: {exc!r}")
+        raise
+
     return {
         "received": True,
-        "ingested": False,  # Will become True in Layer 3
-        "order_id": payload.shift4_order_id,
-        "status": status_text,
-        "item_count": len(payload.order_item_list),
-        "shipment_count": len(payload.shipment_list),
-        "is_guest": payload.customer_id == 0,
-        "note": "Layer 2: validated but not yet persisted",
+        "ingested": True,
+        **result,
     }
     
