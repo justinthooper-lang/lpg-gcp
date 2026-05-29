@@ -112,6 +112,26 @@ CREATE TABLE IF NOT EXISTS shift4.orders (
     discount                NUMERIC(12,2),
     grand_total             NUMERIC(12,2),
 
+-- Human-readable order identifier (Shift4 InvoiceNumberPrefix + InvoiceNumber)
+    invoice_number          TEXT,
+
+    -- Customer-entered comments at checkout
+    comments                TEXT,
+
+    -- Ship-to address (denormalized at order-creation time per ADR-0009;
+    -- shift4.shipments holds the actual shipment-time address once one
+    -- is created in Shift4)
+    ship_to_first_name      TEXT,
+    ship_to_last_name       TEXT,
+    ship_to_company         TEXT,
+    ship_to_address         TEXT,
+    ship_to_address2        TEXT,
+    ship_to_city            TEXT,
+    ship_to_state           TEXT,
+    ship_to_zip             TEXT,
+    ship_to_country         TEXT,
+    ship_to_phone           TEXT,
+
     raw_payload             JSONB,
     created_at              TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
     updated_at              TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
@@ -135,6 +155,7 @@ CREATE TRIGGER trg_orders_updated_at
 CREATE INDEX IF NOT EXISTS idx_orders_customer ON shift4.orders(shift4_customer_id);
 CREATE INDEX IF NOT EXISTS idx_orders_date     ON shift4.orders(order_date DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_status   ON shift4.orders(order_status);
+CREATE INDEX IF NOT EXISTS idx_orders_invoice_number ON shift4.orders(invoice_number);
 
 COMMENT ON TABLE shift4.orders IS
     'Mirror of Shift4 orders. Quote-status orders are filtered at the webhook layer and rejected at the DB layer via CHECK constraint. Billing address denormalized for historical accuracy (ADR-0002).';
