@@ -20,6 +20,8 @@ import uuid
 
 import structlog
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from pg8000.exceptions import DatabaseError, InterfaceError
 
 from ingest import ingest_order
 from logging_config import configure_logging
@@ -117,8 +119,36 @@ def shift4_order_created(payload: Shift4OrderPayload):
     log.info("order_ingest_starting", status=status_text)
     try:
         result = ingest_order(payload)
+    except InterfaceError:
+        # Connection-level failure (Cloud SQL down, network blip,
+        # proxy not running). Return 503 so Shift4 retries.
+        log.error("order_ingest_db_unavailable", exc_info=True)
+        return JSONResponse(
+            status_code=503,
+            content={
+                "received": True,
+                "ingested": False,
+                "reason": "database unavailable; retry later",
+                "order_id": payload.shift4_order_id,
+            },
+        )
+    except DatabaseError:
+        # Query-level failure (FK violation, constraint, type error).
+        # These are code/data bugs — retrying won't help. Return 500
+        # so the error surfaces in monitoring.
+        log.error("order_ingest_db_error", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "received": True,
+                "ingested": False,
+                "reason": "database error; investigation required",
+                "order_id": payload.shift4_order_id,
+            },
+        )
     except Exception:
-        log.error("order_ingest_failed", exc_info=True)
+        # Anything else — defensive fallback.
+        log.error("order_ingest_unexpected_error", exc_info=True)
         raise
 
     log.info(
