@@ -22,6 +22,8 @@ import structlog
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from pg8000.exceptions import DatabaseError, InterfaceError
+from pydantic import ValidationError
+from auth import SIGNATURE_HEADER, verify_signature
 
 from ingest import ingest_order
 from logging_config import configure_logging
@@ -30,7 +32,7 @@ from shift4_models import ORDER_STATUS_MAP, Shift4OrderPayload
 configure_logging()
 log = structlog.get_logger()
 
-app = FastAPI(title="lpg-webhook-handler", version="0.3.0")
+app = FastAPI(title="lpg-webhook-handler", version="0.4.0")
 
 
 @app.middleware("http")
@@ -72,17 +74,37 @@ def root():
 def healthz():
     """Health check endpoint for Cloud Run liveness probes."""
     return {"status": "ok"}
-
-
 @app.post("/webhooks/shift4/order-created")
-def shift4_order_created(payload: Shift4OrderPayload):
+async def shift4_order_created(request: Request):
     """Receive a Shift4 'Order New' webhook.
 
-    Validates the payload against Shift4OrderPayload. FastAPI returns
-    422 automatically if validation fails. Otherwise, classifies the
-    order by status and either ingests it (statuses in ORDER_STATUS_MAP
-    excluding Quote) or skips it (statuses out of allow-list, or Quote).
+    Verifies HMAC signature, parses the body as a Shift4OrderPayload,
+    classifies by status, and either ingests it or returns a skip
+    response. Returns 401 if the signature is missing/invalid, 422
+    if the body fails validation, 503 if the DB is unreachable, 500
+    if a DB query fails.
     """
+    body = await request.body()
+    signature = request.headers.get(SIGNATURE_HEADER)
+
+    if not verify_signature(body, signature):
+        return JSONResponse(
+            status_code=401,
+            content={
+                "received": True,
+                "ingested": False,
+                "reason": "invalid or missing webhook signature",
+            },
+        )
+
+    # Parse + validate the body manually now (FastAPI didn't do it
+    # because the route accepts a raw Request).
+    try:
+        payload = Shift4OrderPayload.model_validate_json(body)
+    except ValidationError as exc:
+        log.warning("webhook_validation_failed", errors=exc.errors())
+        return JSONResponse(status_code=422, content={"detail": exc.errors()})
+
     structlog.contextvars.bind_contextvars(
         order_id=payload.shift4_order_id,
         order_status_id=payload.order_status_id,
@@ -120,8 +142,6 @@ def shift4_order_created(payload: Shift4OrderPayload):
     try:
         result = ingest_order(payload)
     except InterfaceError:
-        # Connection-level failure (Cloud SQL down, network blip,
-        # proxy not running). Return 503 so Shift4 retries.
         log.error("order_ingest_db_unavailable", exc_info=True)
         return JSONResponse(
             status_code=503,
@@ -133,9 +153,6 @@ def shift4_order_created(payload: Shift4OrderPayload):
             },
         )
     except DatabaseError:
-        # Query-level failure (FK violation, constraint, type error).
-        # These are code/data bugs — retrying won't help. Return 500
-        # so the error surfaces in monitoring.
         log.error("order_ingest_db_error", exc_info=True)
         return JSONResponse(
             status_code=500,
@@ -147,7 +164,6 @@ def shift4_order_created(payload: Shift4OrderPayload):
             },
         )
     except Exception:
-        # Anything else — defensive fallback.
         log.error("order_ingest_unexpected_error", exc_info=True)
         raise
 
@@ -163,4 +179,4 @@ def shift4_order_created(payload: Shift4OrderPayload):
         "ingested": True,
         **result,
     }
-    
+
