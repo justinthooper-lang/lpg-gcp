@@ -24,6 +24,7 @@ the system looks the way it does.
 | [0007](./0007-collapse-account-contact-into-customers.md) | Collapse Account + Contact into a single `shift4.customers` table | Accepted |
 | [0008](./0008-cloud-sql-provisioning.md) | Cloud SQL dev instance — cheapest viable configuration | Accepted |
 | [0009](./0009-shift4-webhook-contract.md) | Shift4 webhook contract and resulting schema additions | Accepted |
+| [0010](./0010-product-stub-auto-create.md) | Auto-create product stubs from order ingest | Accepted |
 
 ## How to add a new ADR
 
