@@ -1,0 +1,28 @@
+# Same as .gitignore essentially, plus a few extras for build context
+.git/
+.gitignore
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local-only files
+smoke_*.py
+test_payload.json
+*.log
+
+# Editor / OS
+.vscode/
+.cursor/
+.DS_Store
+
+# Docs / docs-only artifacts — don't need them in the build context
+../docs/
+../migrations/
+../README.md
+../schema.sql
+../*.md
