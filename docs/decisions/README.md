@@ -23,10 +23,11 @@ the system looks the way it does.
 | [0006](./0006-public-repo.md) | Keep the repo public | Accepted |
 | [0007](./0007-collapse-account-contact-into-customers.md) | Collapse Account + Contact into a single `shift4.customers` table | Accepted |
 | [0008](./0008-cloud-sql-provisioning.md) | Cloud SQL dev instance — cheapest viable configuration | Accepted |
-| [0009](./0009-shift4-webhook-contract.md) | Shift4 webhook contract and resulting schema additions | Accepted |
+| [0009](./0009-shift4-webhook-contract.md) | Shift4 webhook contract and resulting schema additions | Accepted (partially superseded) |
 | [0010](./0010-product-stub-auto-create.md) | Auto-create product stubs from order ingest | Accepted |
 | [0011](./0011-cloud-run-deploy-architecture.md) | Webhook handler deploy architecture on Cloud Run | Accepted |
 | [0012](./0012-iam-database-auth.md) | IAM database authentication on Cloud Run | Accepted |
+| [0013](./0013-url-token-auth-for-shift4.md) | URL token authentication for Shift4 webhooks | Accepted |
 
 ## How to add a new ADR
 
