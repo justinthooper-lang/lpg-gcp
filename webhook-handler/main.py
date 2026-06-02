@@ -20,11 +20,11 @@ import uuid
 
 import structlog
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pg8000.exceptions import DatabaseError, InterfaceError
 from pydantic import ValidationError
 from auth import verify_token
-
+from db import get_connection
 from ingest import ingest_order
 from logging_config import configure_logging
 from shift4_models import ORDER_STATUS_MAP, Shift4OrderPayload
@@ -207,4 +207,138 @@ async def shift4_order_created(request: Request):
         "ingested": True,
         **result,
     }
+@app.get("/orders")
+async def list_orders(request: Request):
+    """List recent orders (authenticated read endpoint).
 
+    Query params:
+      token: required, must match SHIFT4_WEBHOOK_TOKEN
+      limit: optional, 1-100, default 20
+
+    Returns a JSON array of recent orders, newest first. Project only
+    a safe subset of columns — no raw_payload (contains PII).
+    """
+    received_token = request.query_params.get("token")
+    if not verify_token(received_token):
+        return JSONResponse(
+            status_code=401,
+            content={"error": "invalid or missing token"},
+        )
+
+    # Parse and clamp limit.
+    try:
+        limit = int(request.query_params.get("limit", "20"))
+    except ValueError:
+        limit = 20
+    limit = max(1, min(limit, 100))
+
+    try:
+        with get_connection() as conn:
+            cur = conn.cursor()
+            try:
+                cur.execute(
+                    """
+                    SELECT
+                        shift4_order_id,
+                        invoice_number,
+                        bill_first_name || ' ' || bill_last_name AS customer_name,
+                        bill_email,
+                        order_status,
+                        grand_total,
+                        updated_at
+                    FROM shift4.orders
+                    ORDER BY updated_at DESC
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
+                rows = cur.fetchall()
+            finally:
+                cur.close()
+    except Exception as exc:
+        log.error("orders_list_db_error", error=str(exc))
+        return JSONResponse(
+            status_code=500,
+            content={"error": "database error"},
+        )
+
+    orders = [
+        {
+            "shift4_order_id": row[0],
+            "invoice_number": row[1],
+            "customer_name": row[2],
+            "email": row[3],
+            "status": row[4],
+            "grand_total": str(row[5]),
+            "updated_at": row[6].isoformat() if row[6] else None,
+        }
+        for row in rows
+    ]
+
+    return {"count": len(orders), "orders": orders}
+
+@app.get("/orders.html", response_class=HTMLResponse)
+async def list_orders_html(request: Request):
+    """HTML view of recent orders. Same auth/data as /orders."""
+    # Reuse the JSON endpoint's logic by calling it.
+    response_data = await list_orders(request)
+
+    # If list_orders returned a JSONResponse (auth/error), pass it through.
+    if isinstance(response_data, JSONResponse):
+        return response_data
+
+    orders = response_data["orders"]
+
+    rows_html = "".join(
+        f"""
+        <tr>
+            <td>{o['shift4_order_id']}</td>
+            <td>{o['invoice_number'] or ''}</td>
+            <td>{o['customer_name']}</td>
+            <td>{o['email'] or ''}</td>
+            <td>{o['status']}</td>
+            <td style="text-align:right">${o['grand_total']}</td>
+            <td>{o['updated_at']}</td>
+        </tr>
+        """
+        for o in orders
+    )
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>LPG — Recent Orders</title>
+    <style>
+        body {{ font-family: -apple-system, system-ui, sans-serif; max-width: 1100px; margin: 2em auto; padding: 0 1em; }}
+        h1 {{ font-weight: 500; }}
+        table {{ width: 100%; border-collapse: collapse; }}
+        th, td {{ padding: 8px 12px; border-bottom: 1px solid #e0e0e0; text-align: left; }}
+        th {{ background: #f5f5f5; font-weight: 500; }}
+        tr:hover {{ background: #fafafa; }}
+        .meta {{ color: #888; font-size: 0.9em; }}
+    </style>
+</head>
+<body>
+    <h1>Recent orders</h1>
+    <p class="meta">{response_data['count']} order{'s' if response_data['count'] != 1 else ''}</p>
+    <table>
+        <thead>
+            <tr>
+                <th>Order ID</th>
+                <th>Invoice</th>
+                <th>Customer</th>
+                <th>Email</th>
+                <th>Status</th>
+                <th style="text-align:right">Total</th>
+                <th>Updated</th>
+            </tr>
+        </thead>
+        <tbody>
+            {rows_html}
+        </tbody>
+    </table>
+</body>
+</html>"""
+
+    return HTMLResponse(content=html)
