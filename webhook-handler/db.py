@@ -1,13 +1,15 @@
 """Database connection for the LPG webhook handler.
 
 Uses google-cloud-sql-python-connector to connect to Cloud SQL Postgres.
-The connector library handles platform differences automatically:
-- On Cloud Run: connects via Unix socket / private path
-- Locally: connects through the Cloud SQL Auth Proxy on 127.0.0.1:5432
 
-Currently uses password authentication (PGPASSWORD env var). Future
-work: switch to IAM database auth, which removes the password
-entirely. That change is local to this module — call sites don't move.
+Two auth modes:
+- **IAM database auth** when running on Cloud Run (detected via K_SERVICE
+  env var). The Connector authenticates as the runtime service account
+  using short-lived OAuth tokens. No password.
+- **Password auth** locally. PGPASSWORD env var, postgres user.
+
+ADR-0012 documents this decision. The mode switch is automatic; call
+sites of get_connection() don't change.
 """
 
 from __future__ import annotations
@@ -19,28 +21,38 @@ from typing import Iterator
 import pg8000.dbapi
 from google.cloud.sql.connector import Connector
 
-# Cloud SQL instance connection name: project:region:instance
 INSTANCE_CONNECTION_NAME = os.getenv(
     "INSTANCE_CONNECTION_NAME",
     "lpg-dev-496820:us-west1:lpg-dev",
 )
 DB_NAME = os.getenv("DB_NAME", "lpg")
-DB_USER = os.getenv("DB_USER", "postgres")
 
-# When running locally with the Cloud SQL Auth Proxy listening on
-# 127.0.0.1:5432, we can either go through the proxy (TCP) or use the
-# connector (which also goes through the proxy under the hood). The
-# connector path works everywhere, so we use it uniformly.
-#
-# Set USE_CONNECTOR=false to fall back to direct TCP via the proxy
-# (useful only if debugging the connector itself).
-USE_CONNECTOR = os.getenv("USE_CONNECTOR", "true").lower() == "true"
+# Auth-mode selection:
+# - On Cloud Run, K_SERVICE is automatically set; we use IAM auth with
+#   the runtime service account.
+# - Locally, we use password auth via PGPASSWORD env var.
+RUNNING_ON_CLOUD_RUN = bool(os.getenv("K_SERVICE"))
+
+# Service account email (without ".gserviceaccount.com" — Cloud SQL's
+# IAM auth quirk). For non-default service accounts we'd configure
+# this via env var.
+IAM_USER = os.getenv(
+    "IAM_DB_USER",
+    "388123220900-compute@developer",
+)
+
+# Local-dev fallback user.
+LOCAL_USER = os.getenv("DB_USER", "postgres")
 
 _connector: Connector | None = None
 
 
 def _password() -> str:
-    """Read postgres password from env. Raise clearly if unset."""
+    """Read postgres password from env. Raise clearly if unset.
+
+    Only used in local-dev (password auth) mode. Cloud Run uses IAM
+    tokens and doesn't call this.
+    """
     pw = os.getenv("PGPASSWORD")
     if not pw:
         raise RuntimeError(
@@ -58,49 +70,36 @@ def _get_connector() -> Connector:
     return _connector
 
 
-def _connect_via_connector() -> pg8000.dbapi.Connection:
-    """Connect using google-cloud-sql-python-connector."""
-    return _get_connector().connect(
-        INSTANCE_CONNECTION_NAME,
-        "pg8000",
-        user=DB_USER,
-        password=_password(),
-        db=DB_NAME,
-    )
-
-
-def _connect_via_tcp() -> pg8000.dbapi.Connection:
-    """Direct pg8000 over TCP — assumes a proxy is running on 127.0.0.1:5432.
-
-    Only used if USE_CONNECTOR=false. Kept for debugging.
-    """
-    return pg8000.dbapi.connect(
-        host="127.0.0.1",
-        port=5432,
-        database=DB_NAME,
-        user=DB_USER,
-        password=_password(),
-    )
+def _connect() -> pg8000.dbapi.Connection:
+    """Open a Cloud SQL connection in the appropriate auth mode."""
+    if RUNNING_ON_CLOUD_RUN:
+        # IAM database auth — Connector fetches OAuth tokens from the
+        # runtime metadata server. No password.
+        return _get_connector().connect(
+            INSTANCE_CONNECTION_NAME,
+            "pg8000",
+            user=IAM_USER,
+            db=DB_NAME,
+            enable_iam_auth=True,
+        )
+    else:
+        # Local dev: password auth as the postgres user.
+        return _get_connector().connect(
+            INSTANCE_CONNECTION_NAME,
+            "pg8000",
+            user=LOCAL_USER,
+            password=_password(),
+            db=DB_NAME,
+        )
 
 
 @contextmanager
 def get_connection() -> Iterator[pg8000.dbapi.Connection]:
     """Yield a pg8000 DB connection; close on exit.
 
-    Use as a context manager:
-        with get_connection() as conn:
-            cur = conn.cursor()
-            try:
-                cur.execute("SELECT 1")
-            finally:
-                cur.close()
-
     Auto-commits on clean exit, rolls back on exception.
     """
-    if USE_CONNECTOR:
-        conn = _connect_via_connector()
-    else:
-        conn = _connect_via_tcp()
+    conn = _connect()
     try:
         yield conn
         conn.commit()
@@ -109,4 +108,3 @@ def get_connection() -> Iterator[pg8000.dbapi.Connection]:
         raise
     finally:
         conn.close()
-        

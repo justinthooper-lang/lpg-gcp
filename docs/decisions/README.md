@@ -26,6 +26,7 @@ the system looks the way it does.
 | [0009](./0009-shift4-webhook-contract.md) | Shift4 webhook contract and resulting schema additions | Accepted |
 | [0010](./0010-product-stub-auto-create.md) | Auto-create product stubs from order ingest | Accepted |
 | [0011](./0011-cloud-run-deploy-architecture.md) | Webhook handler deploy architecture on Cloud Run | Accepted |
+| [0012](./0012-iam-database-auth.md) | IAM database authentication on Cloud Run | Accepted |
 
 ## How to add a new ADR
 
