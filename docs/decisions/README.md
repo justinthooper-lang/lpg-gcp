@@ -25,6 +25,7 @@ the system looks the way it does.
 | [0008](./0008-cloud-sql-provisioning.md) | Cloud SQL dev instance — cheapest viable configuration | Accepted |
 | [0009](./0009-shift4-webhook-contract.md) | Shift4 webhook contract and resulting schema additions | Accepted |
 | [0010](./0010-product-stub-auto-create.md) | Auto-create product stubs from order ingest | Accepted |
+| [0011](./0011-cloud-run-deploy-architecture.md) | Webhook handler deploy architecture on Cloud Run | Accepted |
 
 ## How to add a new ADR
 
