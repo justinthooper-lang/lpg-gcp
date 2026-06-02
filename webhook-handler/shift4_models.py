@@ -26,7 +26,7 @@ class Shift4OrderItem(BaseModel):
 
     sku: str = Field(alias="ItemID")
     description: Optional[str] = Field(default=None, alias="ItemDescription")
-    quantity: int = Field(alias="ItemQuantity")
+    quantity: float = Field(alias="ItemQuantity")
     unit_price: float = Field(alias="ItemUnitPrice")
     item_unit_cost_shift4: Optional[float] = Field(default=None, alias="ItemUnitCost")
 
@@ -108,8 +108,9 @@ class Shift4OrderPayload(BaseModel):
     order_discount: Optional[float] = Field(default=None, alias="OrderDiscount")
     invoice_shipping: Optional[float] = Field(default=None, alias="InvoiceShipping")
 
-    # Free-text
-    comments: Optional[str] = Field(default=None, alias="Comments")
+    # Free-text — Shift4 actually sends "CustomerComments" (verified
+    # against real webhook 2026-06-02), not "Comments".
+    comments: Optional[str] = Field(default=None, alias="CustomerComments")
 
     # Nested arrays
     shipment_list: list[Shift4Shipment] = Field(default_factory=list, alias="ShipmentList")

@@ -23,16 +23,18 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from pg8000.exceptions import DatabaseError, InterfaceError
 from pydantic import ValidationError
-from auth import SIGNATURE_HEADER, verify_signature
+from auth import verify_token
 
 from ingest import ingest_order
 from logging_config import configure_logging
 from shift4_models import ORDER_STATUS_MAP, Shift4OrderPayload
 
+import json
+
 configure_logging()
 log = structlog.get_logger()
 
-app = FastAPI(title="lpg-webhook-handler", version="0.4.0")
+app = FastAPI(title="lpg-webhook-handler", version="0.6.0")
 
 
 @app.middleware("http")
@@ -85,26 +87,52 @@ async def shift4_order_created(request: Request):
     if a DB query fails.
     """
     body = await request.body()
-    signature = request.headers.get(SIGNATURE_HEADER)
+    received_token = request.query_params.get("token")
 
-    if not verify_signature(body, signature):
+    if not verify_token(received_token):
         return JSONResponse(
             status_code=401,
             content={
                 "received": True,
                 "ingested": False,
-                "reason": "invalid or missing webhook signature",
+                "reason": "invalid or missing webhook token",
             },
         )
 
-    # Parse + validate the body manually now (FastAPI didn't do it
-    # because the route accepts a raw Request).
+    # Shift4 sends order webhooks as a JSON array containing a single
+    # order object: [{...}]. We unwrap before validating.
     try:
-        payload = Shift4OrderPayload.model_validate_json(body)
+        parsed = json.loads(body)
+    except json.JSONDecodeError as exc:
+        log.warning("webhook_invalid_json", error=str(exc))
+        return JSONResponse(
+            status_code=422,
+            content={"detail": f"invalid JSON: {exc}"},
+        )
+
+    if isinstance(parsed, list):
+        if len(parsed) != 1:
+            log.warning("webhook_unexpected_array_size", size=len(parsed))
+            return JSONResponse(
+                status_code=422,
+                content={"detail": f"expected array of 1 order, got {len(parsed)}"},
+            )
+        order_dict = parsed[0]
+    elif isinstance(parsed, dict):
+        # Accept bare-object form too (in case Shift4 changes behavior
+        # or for tests).
+        order_dict = parsed
+    else:
+        return JSONResponse(
+            status_code=422,
+            content={"detail": "expected JSON object or array of one object"},
+        )
+
+    try:
+        payload = Shift4OrderPayload.model_validate(order_dict)
     except ValidationError as exc:
         log.warning("webhook_validation_failed", errors=exc.errors())
         return JSONResponse(status_code=422, content={"detail": exc.errors()})
-
     structlog.contextvars.bind_contextvars(
         order_id=payload.shift4_order_id,
         order_status_id=payload.order_status_id,

@@ -4,14 +4,12 @@ Takes a Shift4OrderPayload and writes it to the shift4.* tables in
 a single transaction. Computes derived totals (subtotal, summed tax,
 summed shipping) per ADR-0009.
 
-Known limitation: order_items INSERTs will fail if a SKU isn't in
-shift4.products (FK violation). ADR-0005 documents this race condition;
-Layer 3.5 will add product-stub auto-creation.
+Per ADR-0010, unknown SKUs trigger auto-create of stub product rows
+so order_items FK constraints don't fail.
 """
 
 from __future__ import annotations
 
-import json
 from decimal import Decimal
 from typing import Any
 
@@ -30,20 +28,19 @@ def _customer_id_for(payload: Shift4OrderPayload) -> str:
 def _compute_totals(payload: Shift4OrderPayload) -> dict[str, Decimal]:
     """Compute order totals from the payload per ADR-0009."""
     subtotal = sum(
-        (Decimal(str(item.unit_price)) * Decimal(item.quantity))
+        (Decimal(str(item.unit_price)) * Decimal(str(item.quantity)))
         for item in payload.order_item_list
     )
     tax = sum(
         Decimal(str(t or 0))
         for t in (payload.sales_tax, payload.sales_tax_2, payload.sales_tax_3)
     )
-    # Shipping: sum ShipmentList costs, fall back to InvoiceShipping
+    # Shipping: sum ShipmentList costs. Shift4 always sends shipments
+    # in the Order New payload (verified 2026-06-02).
     shipping = sum(
         Decimal(str(s.customer_shipping_cost or 0))
         for s in payload.shipment_list
     )
-    if shipping == 0 and payload.invoice_shipping:
-        shipping = Decimal(str(payload.invoice_shipping))
 
     return {
         "subtotal": Decimal(subtotal).quantize(Decimal("0.01")),
@@ -163,12 +160,8 @@ def ingest_order(payload: Shift4OrderPayload) -> dict[str, Any]:
                     """,
                     (item.sku, item.description or item.sku),
                 )
+
             cur.execute(
-                "DELETE FROM shift4.order_items WHERE shift4_order_id = %s",
-                (payload.shift4_order_id,),
-            )
-            for item in payload.order_item_list:
-                cur.execute(
                 "DELETE FROM shift4.order_items WHERE shift4_order_id = %s",
                 (payload.shift4_order_id,),
             )
@@ -183,7 +176,7 @@ def ingest_order(payload: Shift4OrderPayload) -> dict[str, Any]:
                     (
                         payload.shift4_order_id,
                         item.sku,
-                        item.quantity,
+                        int(round(item.quantity)),
                         Decimal(str(item.unit_price)).quantize(Decimal("0.01")),
                         Decimal(str(item.item_unit_cost_shift4 or 0)).quantize(Decimal("0.01"))
                         if item.item_unit_cost_shift4 is not None else None,
@@ -234,4 +227,3 @@ def ingest_order(payload: Shift4OrderPayload) -> dict[str, Any]:
         "shipments_inserted": len(payload.shipment_list),
         "totals": {k: str(v) for k, v in totals.items()},
     }
-    

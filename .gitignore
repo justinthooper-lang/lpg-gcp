@@ -11,6 +11,7 @@
 !package.json
 !package-lock.json
 !webhook-handler/test_payload.json
+!webhook-handler/shift4_sample.json
 .env
 .env.*
 *.pem

@@ -1,0 +1,42 @@
+[
+{
+    "InvoiceNumberPrefix": "AB-",
+    "InvoiceNumber": 1000,
+    "OrderID": 1,
+    "CustomerID": 1,
+    "OrderDate": "2016-03-17T09:52:38",
+    "OrderStatusID": 1,
+    "BillingFirstName": "John",
+    "BillingLastName": "Doe",
+    "BillingCompany": "Shift4Shop",
+    "BillingEmail": "john@doe.com",
+    "OrderDiscount": 0.00,
+    "SalesTax": 0.00,
+    "OrderAmount": 39.96,
+    "CustomerComments": "Sample comment from Shift4 test",
+    "ShipmentList": [
+      {
+        "ShipmentID": 1,
+        "ShipmentAddress": "123 Main St.",
+        "ShipmentCity": "Tamarac",
+        "ShipmentState": "FL",
+        "ShipmentZipCode": "33319",
+        "ShipmentCost": 12.15,
+        "ShipmentMethodID": 1,
+        "ShipmentMethodName": "UPS Ground",
+        "ShipmentFirstName": "Someone",
+        "ShipmentLastName": "Else",
+        "ShipmentTrackingCode": "ABC123"
+      }
+    ],
+    "OrderItemList": [
+      {
+        "ItemID": "TEST-SKU-001",
+        "ItemDescription": "Test Product",
+        "ItemQuantity": 1.00,
+        "ItemUnitPrice": 9.99,
+        "ItemUnitCost": 4.57
+      }
+    ]
+}
+]

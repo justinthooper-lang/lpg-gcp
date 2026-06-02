@@ -1,44 +1,58 @@
-"""HMAC signature verification for Shift4 webhooks."""
+"""URL token verification for Shift4 webhooks.
+
+Shift4Shop's webhook configuration UI does not support HMAC signing,
+custom request headers, or Basic Auth (verified via the live webhook
+admin form on 2026-06-02). The only knob we have is the webhook URL
+itself.
+
+We embed a long random token as a query parameter:
+
+    https://.../webhooks/shift4/order-created?token=<TOKEN>
+
+The handler reads the SHIFT4_WEBHOOK_TOKEN env var (mounted from
+Secret Manager in production) and compares against the incoming
+`token` query parameter using constant-time equality.
+
+If SHIFT4_WEBHOOK_TOKEN is unset, verification is bypassed (useful for
+local dev). Production must always set it. See ADR-0013.
+"""
 
 from __future__ import annotations
 
 import hmac
-import hashlib
 import os
 
 import structlog
 
 log = structlog.get_logger()
 
-SIGNATURE_HEADER = "x-shift4-signature"
+
+def webhook_token() -> str | None:
+    """Return the configured token, or None if unset."""
+    token = os.getenv("SHIFT4_WEBHOOK_TOKEN")
+    return token if token else None
 
 
-def webhook_secret() -> str | None:
-    """Return the configured webhook secret, or None if unset."""
-    secret = os.getenv("SHIFT4_WEBHOOK_SECRET")
-    return secret if secret else None
+def verify_token(received_token: str | None) -> bool:
+    """Verify a webhook token against the configured value.
 
+    Returns True if no token is configured (dev mode), OR if the
+    received token matches SHIFT4_WEBHOOK_TOKEN.
 
-def verify_signature(body: bytes, signature_header: str | None) -> bool:
-    """Verify a webhook signature against the configured secret."""
-    secret = webhook_secret()
-    if secret is None:
-        log.warning("webhook_signature_skipped_no_secret_configured")
+    Returns False if a token is configured but the received value
+    is absent or mismatched.
+    """
+    expected = webhook_token()
+    if expected is None:
+        log.warning("webhook_token_skipped_no_token_configured")
         return True
 
-    if not signature_header:
-        log.warning("webhook_signature_missing")
+    if not received_token:
+        log.warning("webhook_token_missing")
         return False
 
-    expected = hmac.new(
-        secret.encode("utf-8"),
-        body,
-        hashlib.sha256,
-    ).hexdigest()
-
-
-    if hmac.compare_digest(expected, signature_header.strip().lower()):
+    if hmac.compare_digest(expected, received_token):
         return True
 
-    log.warning("webhook_signature_mismatch")
+    log.warning("webhook_token_mismatch")
     return False
