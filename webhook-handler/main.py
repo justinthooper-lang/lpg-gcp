@@ -76,6 +76,8 @@ def root():
 def healthz():
     """Health check endpoint for Cloud Run liveness probes."""
     return {"status": "ok"}
+    
+    return {"status": "ready", "method": "GET", "expects": "POST"}
 @app.post("/webhooks/shift4/order-created")
 async def shift4_order_created(request: Request):
     """Receive a Shift4 'Order New' webhook.
@@ -342,3 +344,8 @@ async def list_orders_html(request: Request):
 </html>"""
 
     return HTMLResponse(content=html)
+
+@app.get("/webhooks/shift4/order-created")
+async def shift4_order_created_probe():
+    """Respond 200 to Shift4's pre-POST GET probe."""
+    return {"status": "ready", "method": "GET", "expects": "POST"} 
