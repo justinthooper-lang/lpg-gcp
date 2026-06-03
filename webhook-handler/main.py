@@ -294,7 +294,7 @@ async def list_orders_html(request: Request):
     rows_html = "".join(
         f"""
         <tr>
-            <td>{o['shift4_order_id']}</td>
+            <td><a href="/orders/{o['shift4_order_id']}.html?token={request.query_params.get('token', '')}">{o['shift4_order_id']}</a></td>
             <td>{o['invoice_number'] or ''}</td>
             <td>{o['customer_name']}</td>
             <td>{o['email'] or ''}</td>
@@ -345,7 +345,234 @@ async def list_orders_html(request: Request):
 
     return HTMLResponse(content=html)
 
-@app.get("/webhooks/shift4/order-created")
-async def shift4_order_created_probe():
-    """Respond 200 to Shift4's pre-POST GET probe."""
-    return {"status": "ready", "method": "GET", "expects": "POST"} 
+@app.get("/orders/{order_id:int}")
+async def get_order(order_id: int, request: Request):
+    """Detail view of a single order, with line items and shipments."""
+    received_token = request.query_params.get("token")
+    if not verify_token(received_token):
+        return JSONResponse(
+            status_code=401,
+            content={"error": "invalid or missing token"},
+        )
+
+    try:
+        with get_connection() as conn:
+            cur = conn.cursor()
+            try:
+                cur.execute(
+                    """
+                    SELECT
+                        shift4_order_id, shift4_customer_id, invoice_number,
+                        order_date, order_status, comments,
+                        bill_first_name, bill_last_name, bill_company,
+                        bill_address, bill_address2, bill_city, bill_state,
+                        bill_zip, bill_country, bill_phone, bill_email,
+                        subtotal, tax, shipping_cost, discount, grand_total,
+                        updated_at
+                    FROM shift4.orders
+                    WHERE shift4_order_id = %s
+                    """,
+                    (order_id,),
+                )
+                row = cur.fetchone()
+                if row is None:
+                    return JSONResponse(
+                        status_code=404,
+                        content={"error": f"order {order_id} not found"},
+                    )
+
+                order = {
+                    "shift4_order_id": row[0],
+                    "shift4_customer_id": row[1],
+                    "invoice_number": row[2],
+                    "order_date": row[3].isoformat() if row[3] else None,
+                    "order_status": row[4],
+                    "comments": row[5],
+                    "billing": {
+                        "first_name": row[6],
+                        "last_name": row[7],
+                        "company": row[8],
+                        "address": row[9],
+                        "address2": row[10],
+                        "city": row[11],
+                        "state": row[12],
+                        "zip": row[13],
+                        "country": row[14],
+                        "phone": row[15],
+                        "email": row[16],
+                    },
+                    "totals": {
+                        "subtotal": str(row[17]),
+                        "tax": str(row[18]),
+                        "shipping_cost": str(row[19]),
+                        "discount": str(row[20]),
+                        "grand_total": str(row[21]),
+                    },
+                    "updated_at": row[22].isoformat() if row[22] else None,
+                }
+
+                cur.execute(
+                    """
+                    SELECT sku, quantity, unit_price, item_unit_cost_shift4
+                    FROM shift4.order_items
+                    WHERE shift4_order_id = %s
+                    ORDER BY id
+                    """,
+                    (order_id,),
+                )
+                order["items"] = [
+                    {
+                        "sku": r[0],
+                        "quantity": r[1],
+                        "unit_price": str(r[2]),
+                        "unit_cost": str(r[3]) if r[3] is not None else None,
+                    }
+                    for r in cur.fetchall()
+                ]
+
+                cur.execute(
+                    """
+                    SELECT shift4_shipment_id,
+                        ship_first_name, ship_last_name, ship_company,
+                        ship_address, ship_address2, ship_city, ship_state,
+                        ship_zip, ship_country, ship_phone, ship_email,
+                        shipment_method_name, customer_shipping_cost, tracking_code
+                    FROM shift4.shipments
+                    WHERE shift4_order_id = %s
+                    ORDER BY shift4_shipment_id
+                    """,
+                    (order_id,),
+                )
+                order["shipments"] = [
+                    {
+                        "shipment_id": r[0],
+                        "first_name": r[1],
+                        "last_name": r[2],
+                        "company": r[3],
+                        "address": r[4],
+                        "address2": r[5],
+                        "city": r[6],
+                        "state": r[7],
+                        "zip": r[8],
+                        "country": r[9],
+                        "phone": r[10],
+                        "email": r[11],
+                        "method": r[12],
+                        "shipping_cost": str(r[13]) if r[13] is not None else None,
+                        "tracking_code": r[14],
+                    }
+                    for r in cur.fetchall()
+                ]
+            finally:
+                cur.close()
+    except Exception as exc:
+        log.error("order_detail_db_error", error=str(exc))
+        return JSONResponse(
+            status_code=500,
+            content={"error": "database error"},
+        )
+
+    return order
+
+@app.get("/orders/{order_id}.html", response_class=HTMLResponse)
+async def get_order_html(order_id: int, request: Request):
+    """HTML view of a single order. Same auth/data as /orders/{id}."""
+    response_data = await get_order(order_id, request)
+    if isinstance(response_data, JSONResponse):
+        return response_data
+
+    o = response_data
+
+    items_html = "".join(
+        f"""
+        <tr>
+            <td>{i['sku']}</td>
+            <td style="text-align:right">{i['quantity']}</td>
+            <td style="text-align:right">${i['unit_price']}</td>
+            <td style="text-align:right">${i['unit_cost'] or '—'}</td>
+        </tr>
+        """
+        for i in o["items"]
+    )
+
+    shipments_html = "".join(
+        f"""
+        <div class="card">
+            <strong>Shipment {s['shipment_id']}</strong> &mdash; {s['method'] or '(no method)'}<br>
+            {s['first_name']} {s['last_name']}<br>
+            {s['company'] or ''}<br>
+            {s['address']}{', ' + s['address2'] if s['address2'] else ''}<br>
+            {s['city']}, {s['state']} {s['zip']} {s['country']}<br>
+            <span class="meta">Cost: ${s['shipping_cost'] or '0.00'} &middot; Tracking: {s['tracking_code'] or '(none)'}</span>
+        </div>
+        """
+        for s in o["shipments"]
+    )
+
+    b = o["billing"]
+    t = o["totals"]
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Order {o['shift4_order_id']} — LPG</title>
+    <style>
+        body {{ font-family: -apple-system, system-ui, sans-serif; max-width: 900px; margin: 2em auto; padding: 0 1em; }}
+        h1 {{ font-weight: 500; margin-bottom: 0; }}
+        h2 {{ font-weight: 500; font-size: 1.1em; margin-top: 2em; border-bottom: 1px solid #ddd; padding-bottom: 4px; }}
+        table {{ width: 100%; border-collapse: collapse; }}
+        th, td {{ padding: 8px 12px; border-bottom: 1px solid #eee; text-align: left; }}
+        th {{ background: #f5f5f5; font-weight: 500; }}
+        .meta {{ color: #888; font-size: 0.9em; }}
+        .card {{ border: 1px solid #e0e0e0; border-radius: 4px; padding: 12px 16px; margin: 8px 0; }}
+        .totals td:first-child {{ width: 70%; text-align: right; }}
+        .totals td:last-child {{ text-align: right; font-variant-numeric: tabular-nums; }}
+        .totals tr.grand td {{ font-weight: 600; border-top: 2px solid #333; }}
+        .back {{ color: #888; }}
+    </style>
+</head>
+<body>
+    <p class="back"><a href="javascript:history.back()">&larr; Back</a></p>
+    <h1>Order {o['shift4_order_id']}</h1>
+    <p class="meta">{o['invoice_number'] or ''} &middot; {o['order_status']} &middot; {o['order_date'] or ''}</p>
+
+    <h2>Customer</h2>
+    <p>
+        {b['first_name']} {b['last_name']}<br>
+        {b['company'] or ''}<br>
+        {b['address']}{', ' + b['address2'] if b['address2'] else ''}<br>
+        {b['city']}, {b['state']} {b['zip']} {b['country']}<br>
+        <span class="meta">{b['email'] or '(no email)'} &middot; {b['phone'] or '(no phone)'}</span>
+    </p>
+
+    <h2>Items</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>SKU</th>
+                <th style="text-align:right">Qty</th>
+                <th style="text-align:right">Unit Price</th>
+                <th style="text-align:right">Unit Cost</th>
+            </tr>
+        </thead>
+        <tbody>{items_html}</tbody>
+    </table>
+
+    <h2>Shipments</h2>
+    {shipments_html or '<p class="meta">(no shipments)</p>'}
+
+    <h2>Totals</h2>
+    <table class="totals">
+        <tr><td>Subtotal</td><td>${t['subtotal']}</td></tr>
+        <tr><td>Tax</td><td>${t['tax']}</td></tr>
+        <tr><td>Shipping</td><td>${t['shipping_cost']}</td></tr>
+        <tr><td>Discount</td><td>${t['discount']}</td></tr>
+        <tr class="grand"><td>Grand Total</td><td>${t['grand_total']}</td></tr>
+    </table>
+
+    {f'<h2>Comments</h2><p>{o["comments"]}</p>' if o['comments'] else ''}
+</body>
+</html>"""
+
+    return HTMLResponse(content=html)
