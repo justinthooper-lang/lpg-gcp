@@ -1,0 +1,603 @@
+category,vendor_sku_code,unit_cost,std_pack_qty,std_skid_qty,status,notes
+Street Lamps,88060-CL-8F,52.60,1,24,active,
+Street Lamps,Kit-88060-CL-XX (98009-A-SL),,1,24,call_for_quote,
+Street Lamps,88260-CL-8F,52.60,1,24,active,
+Street Lamps,88260-LD-8F,,1,24,call_for_quote,
+Street Lamps,88260-WH-8F,,1,24,call_for_quote,
+Street Lamps,Kit-88260-CL-XX (98009-A-SL),,1,24,call_for_quote,
+Street Lamps,Kit-88260-LD-XX (98009-A-SL),,1,24,call_for_quote,
+Street Lamps,Kit-88260-WH-XX (98009-A-SL),,1,24,call_for_quote,
+Street Lamps,88061-CL-6F,,1,,call_for_quote,STD SKID = MOQ
+Street Lamps,88061-CL-8F,50.10,1,45,active,
+Street Lamps,88261-CL-6F,,1,,call_for_quote,STD SKID = MOQ
+Street Lamps,88261-CL-8F,50.10,1,45,active,
+Street Lamps,88261-LD-8F,,1,,call_for_quote,STD SKID = MOQ
+Street Lamps,88062-CL-8F,52.60,1,20,active,
+Street Lamps,88262-CL-8F,52.60,1,20,active,
+Street Lamps,88063-CL-8F,50.05,1,27,active,
+Street Lamps,88263-CL-8F,50.05,1,27,active,
+Street Lamps,88263-WH-8F,50.05,1,27,active,
+Street Lamps,88263-LD-8F,57.15,1,27,active,
+Street Lamps,88064-CL-8F,52.60,1,24,active,
+Street Lamps,88264-CL-8F,52.60,1,24,active,
+Street Lamps,88264-WH-8F,52.60,1,24,active,
+Street Lamps,88264-LD-8F,59.55,1,24,active,
+Street Lamps,88065-CL-6F,33.95,1,64,active,
+Street Lamps,88065-CL-5N,33.95,1,64,active,
+Street Lamps,88265-CL-6F,33.95,1,64,active,
+Street Lamps,88265-CL-5N,33.95,1,64,active,
+Street Lamps,88265-LD-5N,,1,,call_for_quote,STD SKID = MOQ
+Street Lamps,88265-LD-6F,,1,,call_for_quote,STD SKID = MOQ
+Street Lamps,88465-WH-5N,10.80,1,64,active,
+Street Lamps,88465-WH-6F,10.80,1,64,active,
+Street Lamps,88066-CL-8F,52.60,1,20,active,
+Street Lamps,88066-CL-9F,52.60,1,20,active,
+Street Lamps,88266-CL-8F,52.60,1,20,active,
+Street Lamps,88266-WH-8F,52.60,1,20,active,
+Street Lamps,88266-LD-8F,59.55,1,20,active,
+Street Lamps,88266-CL-9F,52.60,1,20,active,
+Street Lamps,88266-WH-9F,52.60,1,20,active,
+Street Lamps,88266-LD-9F,59.55,1,20,active,
+Street Lamps,88067-CL-4F,33.95,1,64,active,
+Street Lamps,88067-CL-5N,33.95,1,64,active,
+Street Lamps,88067-CL-6F,33.95,1,64,active,
+Street Lamps,88267-CL-4F,33.95,1,64,active,
+Street Lamps,88267-CL-5N,33.95,1,64,active,
+Street Lamps,88267-CL-6F,33.95,1,64,active,
+Street Lamps,88267-LD-4F,,1,,call_for_quote,STD SKID = MOQ
+Street Lamps,88267-LD-5N,,1,,call_for_quote,STD SKID = MOQ
+Street Lamps,88267-LD-6F,,1,,call_for_quote,STD SKID = MOQ
+Street Lamps,88467-WH-4F,10.80,1,64,active,
+Street Lamps,88467-WH-5N,10.80,1,64,active,
+Street Lamps,88467-WH-6F,10.80,1,64,active,
+Street Lamps,88068-CL-4F,21.60,4,144,active,
+Street Lamps,88069-CL-8F,,1,,call_for_quote,STD SKID = MOQ
+Street Lamps,88069-CL-9F,,1,,call_for_quote,STD SKID = MOQ
+Street Lamps,88269-CL-8F,,1,,call_for_quote,STD SKID = MOQ
+Street Lamps,88269-CL-9F,,1,,call_for_quote,STD SKID = MOQ
+Street Lamps,88269-LD-8F,,1,,call_for_quote,STD SKID = MOQ
+Street Lamps,88269-LD-9F,,1,,call_for_quote,STD SKID = MOQ
+Street Lamps,88230-CL,26.85,2,48,active,
+Street Lamps,86280C-BC,,,,call_for_quote,STD PACK/SKID = TBD
+Street Lamps,86280C-CL,,,,call_for_quote,STD PACK/SKID = TBD
+Street Lamps,86280C-LD,,,,call_for_quote,STD PACK/SKID = TBD
+Street Lamps,86280C-SP,,,,call_for_quote,STD PACK/SKID = TBD
+Street Lamps,86280C-WH,,,,call_for_quote,STD PACK/SKID = TBD
+Street Lamps,86280L-BC,,,,call_for_quote,STD PACK/SKID = TBD
+Street Lamps,86280L-CL,,,,call_for_quote,STD PACK/SKID = TBD
+Street Lamps,86280L-LD,,,,call_for_quote,STD PACK/SKID = TBD
+Street Lamps,86280L-SP,,,,call_for_quote,STD PACK/SKID = TBD
+Street Lamps,86280L-WH,,,,call_for_quote,STD PACK/SKID = TBD
+Street Lamps,88230-ALEX3-8F,,1,12,call_for_quote,
+Street Lamps,88230-ALEX5-8F,,1,12,call_for_quote,
+Street Lamps,88230-ALEX3-9F,,1,12,call_for_quote,
+Street Lamps,88230-ALEX5-9F,,1,12,call_for_quote,
+Street Lamps,88230A25920-CL-8F,117.00,1,12,active,
+Street Lamps,88230A25920-LD-8F,122.85,1,12,active,
+Street Lamps,88230A25920-CL-9F,117.00,1,12,active,
+Street Lamps,88230A25920-LD-9F,122.85,1,12,active,
+Street Lamps,XX,3.00,,,active,"Special cut/hole, priced per"
+Street Lamps,LEXALITE-AC-3-8F,,5,60,call_for_quote,
+Street Lamps,LEXALITE-AC-5-8F,,5,60,call_for_quote,
+Street Lamps,LEXALITE-AC-3-9F,,5,60,call_for_quote,
+Street Lamps,LEXALITE-AC-5-9F,,5,60,call_for_quote,
+Street Lamps,25920-CL-8F,68.70,1,45,active,
+Street Lamps,25920-LD-8F,74.40,1,45,active,
+Street Lamps,25920-CL-9F,68.70,1,45,active,
+Street Lamps,25920-LD-9F,74.40,1,45,active,
+Tear Drops,88040-CL-8F,52.10,1,45,active,
+Tear Drops,88040-CL-10F,52.10,1,45,active,
+Tear Drops,88240-CL-8F,52.10,1,45,active,
+Tear Drops,88240-CL-10F,52.10,1,45,active,
+Tear Drops,88041-CL-5N,,8,,call_for_quote,STD SKID = MOQ
+Tear Drops,88041-CL-6F,,8,,call_for_quote,STD SKID = MOQ
+Tear Drops,88041-CL-8F,,8,,call_for_quote,STD SKID = MOQ
+Tear Drops,88041-CL-9V,33.95,8,96,active,
+Tear Drops,88241-CL-5N,,8,,call_for_quote,STD SKID = MOQ
+Tear Drops,88241-CL-6F,,8,,call_for_quote,STD SKID = MOQ
+Tear Drops,88241-CL-8F,,8,,call_for_quote,STD SKID = MOQ
+Tear Drops,88241-CL-9V,33.95,8,96,active,
+Tear Drops,82134-CL,55.35,1,45,active,
+Tear Drops,82134-WH,62.10,1,45,active,
+Tear Drops,82134-LD,60.60,1,45,active,
+Tear Drops,86226-CL,,2,90,call_for_quote,
+Tear Drops,86226-WH,,2,90,call_for_quote,
+Tear Drops,86226-LD,,2,90,call_for_quote,
+Tear Drops,86226-SP,,2,90,call_for_quote,
+Tear Drops,86226-IMP,,2,90,call_for_quote,
+Tear Drops,86227-CL,,2,90,call_for_quote,
+Tear Drops,86227-WH,,2,90,call_for_quote,
+Tear Drops,86227-LD,,2,90,call_for_quote,
+Tear Drops,86227-SP,,2,90,call_for_quote,
+Tear Drops,86227-IMP,,2,90,call_for_quote,
+Spheres,20006-CL-3F,3.25,64,768,active,
+Spheres,20006-WH-3F,3.50,64,768,active,
+Spheres,20006-BR-3F,3.80,64,768,active,
+Spheres,20006-SM-3F,3.80,64,768,active,
+Spheres,20006-LD-3F,3.35,64,768,active,
+Spheres,20006-CL-3S,3.25,64,768,active,
+Spheres,20006-WH-3S,3.50,64,768,active,
+Spheres,20006-BR-3S,3.80,64,768,active,
+Spheres,20006-SM-3S,3.80,64,768,active,
+Spheres,20006-LD-3S,3.35,64,768,active,
+Spheres,20006-CL-XX,4.70,64,768,active,
+Spheres,20006-WH-XX,4.95,64,768,active,
+Spheres,20006-BR-XX,5.25,64,768,active,
+Spheres,20006-SM-XX,5.25,64,768,active,
+Spheres,20006-LD-XX,4.75,64,768,active,
+Prismatic Spheres,21006-CL-3F,3.25,64,768,active,
+Prismatic Spheres,21006-CL-3S,3.25,64,768,active,
+Prismatic Spheres,21006-CL-XX,4.70,64,768,active,
+Spheres,20008-CL-4F,5.65,27,324,active,
+Spheres,20008-WH-4F,6.25,27,324,active,
+Spheres,20008-BR-4F,6.55,27,324,active,
+Spheres,20008-SM-4F,6.55,27,324,active,
+Spheres,20008-LD-4F,5.90,27,324,active,
+Spheres,20008-CL-3S,5.65,27,324,active,
+Spheres,20008-WH-3S,6.25,27,324,active,
+Spheres,20008-BR-3S,6.55,27,324,active,
+Spheres,20008-SM-3S,6.55,27,324,active,
+Spheres,20008-CL-4T,5.65,27,324,active,
+Spheres,20008-WH-4T,6.25,27,324,active,
+Spheres,20008-BR-4T,6.55,27,324,active,
+Spheres,20008-SM-4T,6.55,27,324,active,
+Spheres,20008-LD-4T,5.90,27,324,active,
+Spheres,20008-CL-3N,5.65,27,324,active,
+Spheres,20008-WH-3N,6.25,27,324,active,
+Spheres,20008-BR-3N,6.55,27,324,active,
+Spheres,20008-SM-3N,6.55,27,324,active,
+Spheres,20008-LD-3N,5.90,27,324,active,
+Spheres,20008-CL-XX,7.15,27,324,active,
+Spheres,20008-WH-XX,7.65,27,324,active,
+Spheres,20008-BR-XX,7.95,27,324,active,
+Spheres,20008-SM-XX,7.95,27,324,active,
+Spheres,20008-LD-XX,7.30,27,324,active,
+Spheres,10008-CL-4F,22.90,1,140,active,
+Spheres,10008-WH-4F,22.90,1,140,active,
+Spheres,10008-SM-4F,,,,discontinued,
+Spheres,10008-CL-XX,22.90,1,140,active,
+Spheres,10008-WH-XX,22.90,1,140,active,
+Spheres,10008-BR-XX,,1,,call_for_quote,STD SKID = MOQ
+Spheres,10008-SM-XX,,,,discontinued,
+Prismatic Spheres,21008-CL-4F,6.45,27,324,active,
+Prismatic Spheres,21008-CL-3S,6.45,27,324,active,
+Prismatic Spheres,21008-CL-4T,6.45,27,324,active,
+Prismatic Spheres,21008-CL-3N,6.45,27,324,active,
+Prismatic Spheres,21008-CL-XX,7.85,27,324,active,
+Spheres,20010-CL-4F,9.95,8,128,active,
+Spheres,20010-WH-4F,10.90,8,128,active,
+Spheres,20010-BR-4F,11.45,8,128,active,
+Spheres,20010-SM-4F,11.45,8,128,active,
+Spheres,20010-LD-4F,10.20,8,128,active,
+Spheres,20010-CL-4T,9.95,8,128,active,
+Spheres,20010-WH-4T,10.90,8,128,active,
+Spheres,20010-BR-4T,11.45,8,128,active,
+Spheres,20010-SM-4T,11.45,8,128,active,
+Spheres,20010-LD-4T,10.20,8,128,active,
+Spheres,20010-CL-XX,11.65,8,128,active,
+Spheres,20010-WH-XX,12.60,8,128,active,
+Spheres,20010-BR-XX,13.10,8,128,active,
+Spheres,20010-SM-XX,13.10,8,128,active,
+Spheres,20010-LD-XX,11.90,8,128,active,
+Spheres,10010-CL-4F,24.35,1,120,active,
+Spheres,10010-WH-4F,24.35,1,120,active,
+Spheres,10010-BR-4F,,1,,call_for_quote,STD SKID = MOQ
+Spheres,10010-SM-4F,,1,,discontinued,
+Spheres,10010-CL-XX,24.35,1,120,active,
+Spheres,10010-WH-XX,24.35,1,120,active,
+Spheres,10010-BR-XX,,1,,call_for_quote,STD SKID = MOQ
+Spheres,10010-SM-XX,,1,,discontinued,
+Prismatic Spheres,21010-CL-4F,10.35,8,128,active,
+Prismatic Spheres,21010-CL-4T,10.35,8,128,active,
+Prismatic Spheres,21010-CL-XX,12.10,8,128,active,
+Spheres,20012-CL-4F,12.40,8,96,active,
+Spheres,20012-WH-4F,13.75,8,96,active,
+Spheres,20012-BR-4F,14.60,8,96,active,
+Spheres,20012-SM-4F,14.60,8,96,active,
+Spheres,20012-LD-4F,12.95,8,96,active,
+Spheres,20012-CL-4T,12.40,8,96,active,
+Spheres,20012-WH-4T,13.75,8,96,active,
+Spheres,20012-BR-4T,14.60,8,96,active,
+Spheres,20012-SM-4T,14.60,8,96,active,
+Spheres,20012-LD-4T,12.95,8,96,active,
+Spheres,20012-CL-5N,12.40,8,96,active,
+Spheres,20012-WH-5N,13.75,8,96,active,
+Spheres,20012-BR-5N,14.60,8,96,active,
+Spheres,20012-SM-5N,14.60,8,96,active,
+Spheres,20012-LD-5N,12.95,8,96,active,
+Spheres,20012-CL-XX,14.15,8,96,active,
+Spheres,20012-WH-XX,15.50,8,96,active,
+Spheres,20012-BR-XX,16.25,8,96,active,
+Spheres,20012-SM-XX,16.25,8,96,active,
+Spheres,20012-LD-XX,14.60,8,96,active,
+Spheres,10012-CL-XX,29.55,1,72,active,
+Spheres,10012-WH-XX,29.55,1,72,active,
+Spheres,10012-BR-XX,,1,72,call_for_quote,
+Spheres,10012-SM-XX,,1,72,discontinued,
+Prismatic Spheres,21012-CL-4F,13.90,8,96,active,
+Prismatic Spheres,21012-CL-4T,13.90,8,96,active,
+Prismatic Spheres,21012-CL-5N,13.90,8,96,active,
+Prismatic Spheres,21012-CL-XX,15.65,8,96,active,
+Smooth Ovaloid,20912-CL-4F,,8,,call_for_quote,STD SKID = MOQ
+Smooth Ovaloid,20912-WH-4F,,8,,call_for_quote,STD SKID = MOQ
+Smooth Ovaloid,20912-LD-4F,,8,,call_for_quote,STD SKID = MOQ
+Smooth Ovaloid,20912-CL-4T,,8,,call_for_quote,STD SKID = MOQ
+Smooth Ovaloid,20912-WH-4T,,8,,call_for_quote,STD SKID = MOQ
+Smooth Ovaloid,20912-LD-4T,,8,,call_for_quote,STD SKID = MOQ
+Smooth Ovaloid,20912-CL-5N,,8,,call_for_quote,STD SKID = MOQ
+Smooth Ovaloid,20912-WH-5N,,8,,call_for_quote,STD SKID = MOQ
+Smooth Ovaloid,20912-LD-5N,,8,,call_for_quote,STD SKID = MOQ
+Smooth Ovaloid,20912-CL-XX,,8,,call_for_quote,STD SKID = MOQ
+Smooth Ovaloid,20912-WH-XX,,8,,call_for_quote,STD SKID = MOQ
+Smooth Ovaloid,20912-LD-XX,,8,,call_for_quote,STD SKID = MOQ
+Prismatic Ovaloid,21312-CL-4F,,8,,call_for_quote,STD SKID = MOQ
+Prismatic Ovaloid,21312-CL-4T,,8,,call_for_quote,STD SKID = MOQ
+Prismatic Ovaloid,21312-CL-5N,,8,,call_for_quote,STD SKID = MOQ
+Prismatic Ovaloid,21312-CL-XX,,8,,call_for_quote,STD SKID = MOQ
+Spheres,20014-CL-6F,27.65,1,54,active,
+Spheres,20014-WH-6F,29.00,1,54,active,
+Spheres,20014-BR-6F,30.85,1,54,active,
+Spheres,20014-SM-6F,30.85,1,54,active,
+Spheres,20014-LD-6F,29.25,1,54,active,
+Spheres,20014-CL-5N,27.65,1,54,active,
+Spheres,20014-WH-5N,29.00,1,54,active,
+Spheres,20014-BR-5N,30.85,1,54,active,
+Spheres,20014-SM-5N,30.85,1,54,active,
+Spheres,20014-LD-5N,29.25,1,54,active,
+Spheres,20014-CL-XX,29.70,1,54,active,
+Spheres,20014-WH-XX,31.00,1,54,active,
+Spheres,20014-BR-XX,32.80,1,54,active,
+Spheres,20014-SM-XX,32.80,1,54,active,
+Spheres,20014-LD-XX,31.25,1,54,active,
+Spheres,10014-CL-XX,34.65,1,54,active,
+Spheres,10014-WH-XX,34.65,1,54,active,
+Spheres,10014-BR-XX,,1,,call_for_quote,STD SKID = MOQ
+Spheres,10014-SM-XX,,1,,discontinued,
+Spheres,20016-CL-6F,36.95,1,45,active,
+Spheres,20016-WH-6F,39.45,1,45,active,
+Spheres,20016-BR-6F,41.05,1,45,active,
+Spheres,20016-SM-6F,41.05,1,45,active,
+Spheres,20016-LD-6F,39.20,1,45,active,
+Spheres,20016-CL-5N,36.95,1,45,active,
+Spheres,20016-WH-5N,39.45,1,45,active,
+Spheres,20016-BR-5N,41.05,1,45,active,
+Spheres,20016-SM-5N,41.05,1,45,active,
+Spheres,20016-LD-5N,39.20,1,45,active,
+Spheres,20016-CL-XX,38.90,1,45,active,
+Spheres,20016-WH-XX,41.45,1,45,active,
+Spheres,20016-BR-XX,43.00,1,45,active,
+Spheres,20016-SM-XX,43.00,1,45,active,
+Spheres,20016-LD-XX,41.15,1,45,active,
+Spheres,10016-CL-5N,47.45,1,45,active,
+Spheres,10016-WH-5N,47.45,1,45,active,
+Spheres,10016-BR-5N,,1,,call_for_quote,STD SKID = MOQ
+Spheres,10016-SM-5N,,1,,discontinued,
+Spheres,10016-CL-XX,47.45,1,45,active,
+Spheres,10016-WH-XX,47.45,1,45,active,
+Spheres,10016-BR-XX,,1,,call_for_quote,STD SKID = MOQ
+Spheres,10016-SM-XX,,1,,discontinued,
+Prismatic Spheres,21016-CL-5N,36.95,1,45,active,
+Prismatic Spheres,21016-CL-6F,36.95,1,45,active,
+Prismatic Spheres,21016-CL-XX,38.90,1,45,active,
+Spheres,20018-CL-6F,49.50,1,24,active,
+Spheres,20018-WH-6F,54.20,1,24,active,
+Spheres,20018-BR-6F,,1,24,call_for_quote,
+Spheres,20018-SM-6F,,1,24,call_for_quote,
+Spheres,20018-LD-6F,53.50,1,24,active,
+Spheres,20018-CL-5N,49.50,1,24,active,
+Spheres,20018-WH-5N,54.20,1,24,active,
+Spheres,20018-BR-5N,,1,24,call_for_quote,
+Spheres,20018-SM-5N,,1,24,call_for_quote,
+Spheres,20018-LD-5N,53.50,1,24,active,
+Spheres,20018-CL-XX,51.50,1,24,active,
+Spheres,20018-WH-XX,56.15,1,24,active,
+Spheres,20018-BR-XX,,1,24,call_for_quote,
+Spheres,20018-SM-XX,,1,24,call_for_quote,
+Spheres,20018-LD-XX,55.45,1,24,active,
+Spheres,10018-CL-6F,54.00,1,24,active,
+Spheres,10018-WH-6F,54.00,1,24,active,
+Spheres,10018-BR-6F,,1,,call_for_quote,STD SKID = MOQ
+Spheres,10018-SM-6F,,,,discontinued,
+Spheres,10018-CL-5N,54.00,1,24,active,
+Spheres,10018-WH-5N,54.00,1,24,active,
+Spheres,10018-BR-5N,,1,,call_for_quote,STD SKID = MOQ
+Spheres,10018-SM-5N,,,,discontinued,
+Spheres,10018-CL-XX,54.00,1,24,active,
+Spheres,10018-WH-XX,54.00,1,24,active,
+Spheres,10018-BR-XX,,1,,call_for_quote,STD SKID = MOQ
+Spheres,10018-SM-XX,,,,discontinued,
+Prismatic Spheres,21018-CL-6F,,1,,call_for_quote,STD SKID = MOQ
+Prismatic Spheres,11018-CL-6F,,1,,call_for_quote,STD SKID = MOQ
+Prismatic Spheres,21018-CL-5N,,1,,call_for_quote,STD SKID = MOQ
+Prismatic Spheres,11018-CL-5N,,1,,call_for_quote,STD SKID = MOQ
+Prismatic Spheres,21018-CL-XX,,1,,call_for_quote,STD SKID = MOQ
+Prismatic Spheres,11018-CL-XX,,1,,call_for_quote,STD SKID = MOQ
+Spheres,20020-CL-6F,72.00,1,16,active,
+Spheres,20020-WH-6F,76.90,1,16,active,
+Spheres,20020-BR-6F,,1,16,call_for_quote,
+Spheres,20020-SM-6F,,1,16,call_for_quote,
+Spheres,20020-LD-6F,74.50,1,16,active,
+Spheres,20020-CL-5N,72.00,1,16,active,
+Spheres,20020-WH-5N,76.90,1,16,active,
+Spheres,20020-BR-5N,,1,16,call_for_quote,
+Spheres,20020-SM-5N,,1,16,call_for_quote,
+Spheres,20020-LD-5N,74.50,1,16,active,
+Spheres,20020-CL-XX,74.00,1,16,active,
+Spheres,20020-WH-XX,78.85,1,16,active,
+Spheres,20020-BR-XX,,1,16,call_for_quote,
+Spheres,20020-SM-XX,,1,16,call_for_quote,
+Spheres,20020-LD-XX,76.50,1,16,active,
+Spheres,10020-CL-6F,87.65,1,16,active,
+Spheres,10020-WH-6F,87.65,1,16,active,
+Spheres,10020-BR-6F,,1,,call_for_quote,STD SKID = MOQ
+Spheres,10020-SM-6F,,,,discontinued,
+Spheres,10020-CL-5N,87.65,1,16,active,
+Spheres,10020-WH-5N,87.65,1,16,active,
+Spheres,10020-BR-5N,,1,,call_for_quote,STD SKID = MOQ
+Spheres,10020-SM-5N,,,,discontinued,
+Spheres,10020-CL-XX,87.65,1,16,active,
+Spheres,10020-WH-XX,87.65,1,16,active,
+Spheres,10020-BR-XX,,1,,call_for_quote,STD SKID = MOQ
+Spheres,10020-SM-XX,,,,discontinued,
+Prismatic Spheres,21020-CL-6F,,1,,discontinued,
+Prismatic Spheres,11020-CL-6F,,1,,discontinued,
+Prismatic Spheres,21020-CL-5N,,1,,discontinued,
+Prismatic Spheres,11020-CL-5N,,1,,discontinued,
+Prismatic Spheres,21020-CL-XX,,1,,discontinued,
+Prismatic Spheres,11020-CL-XX,,1,,discontinued,
+Spheres,20022-CL-XX,107.20,1,12,active,
+Spheres,20022-LD-XX,111.80,1,12,active,
+Spheres,20022-WH-XX,114.50,1,12,active,
+Two Piece Spheres,60224-CL-XX,,1,6,call_for_quote,
+Two Piece Spheres,60224-WH-XX,,1,6,call_for_quote,
+Two Piece Spheres,60227-CL-XX,,1,2,call_for_quote,
+Two Piece Spheres,60227-WH-XX,,1,2,call_for_quote,
+Two Piece Spheres,60230-CL-XX,,1,2,call_for_quote,
+Two Piece Spheres,60230-WH-XX,,1,2,call_for_quote,
+Two Piece Spheres,60236-CL-XX,,1,2,call_for_quote,
+Two Piece Spheres,60236-WH-XX,,1,2,call_for_quote,
+Tapered Cylinders,25900-CL,62.10,1,45,active,
+Tapered Cylinders,25900-WH,70.20,1,45,active,
+Tapered Cylinders,25900-LD,65.75,1,45,active,
+Tapered Cylinders,15900-CL,62.10,1,45,active,
+Tapered Cylinders,15900-WH,65.75,1,45,active,
+Tapered Flanged Cylinders,25901-CL,62.10,1,45,active,
+Tapered Flanged Cylinders,25901-WH,70.20,1,45,active,
+Tapered Flanged Cylinders,25901-LD,65.75,1,45,active,
+Tapered Flanged Cylinders,25902-CL,62.10,1,45,active,
+Tapered Flanged Cylinders,25902-WH,70.20,1,45,active,
+Tapered Flanged Cylinders,25902-LD,65.75,1,45,active,
+Tapered Flanged Cylinders,15901-CL,62.10,1,45,active,
+Tapered Flanged Cylinders,15901-WH,70.20,1,45,active,
+Tapered Flanged Cylinders,15902-CL,62.10,1,45,active,
+Tapered Flanged Cylinders,15902-WH,65.75,1,45,active,
+Hourglass Lens,25910-CL,64.25,1,45,active,
+Hourglass Lens,25910-WH,72.40,1,45,active,
+Hourglass Lens,25910-LD,68.00,1,45,active,
+Hourglass Lens,15910-CL,64.25,1,45,active,
+Hourglass Lens,15910-WH,68.00,1,45,active,
+Smooth Cylinders,25006-CL-3F,,75,1200,discontinued,
+Smooth Cylinders,25006-WH-3F,3.30,75,1200,active,
+Smooth Cylinders,25006-CL-3S,,75,1200,discontinued,
+Smooth Cylinders,25006-WH-3S,3.30,75,1200,active,
+Prismatic Cylinders,25106-CL-3F,3.35,75,1200,active,
+Prismatic Cylinders,25106-WH-3F,3.60,75,1200,active,
+Prismatic Cylinders,15106-CL-3S,3.90,75,1200,active,
+Prismatic Cylinders,25106-CL-3S,3.35,75,1200,active,
+Prismatic Cylinders,25106-WH-3S,3.60,75,1200,active,
+Prismatic Domed Cylinders,25105-CL-3F,3.55,75,1200,active,
+Prismatic Domed Cylinders,25105-WH-3F,3.80,75,1200,active,
+Prismatic Domed Cylinders,15105-CL-3F,4.35,75,1200,active,
+Prismatic Domed Cylinders,15105-WH-3F,4.35,75,1200,active,
+Prismatic Domed Cylinders,25105-CL-3S,3.50,75,1200,active,
+Prismatic Domed Cylinders,25105-WH-3S,3.80,75,1200,active,
+Prismatic Domed Cylinders,15105-CL-3S,4.35,75,1200,active,
+Prismatic Domed Cylinders,15105-WH-3S,4.35,75,1200,active,
+Prismatic Cylinders,25108-CL-3F,3.55,40,640,active,
+Prismatic Cylinders,25108-WH-3F,3.80,40,640,active,
+Prismatic Cylinders,15108-CL-3F,4.35,40,640,active,
+Prismatic Cylinders,15108-WH-3F,4.35,40,640,active,
+Prismatic Cylinders,25108-CL-3S,3.55,40,640,active,
+Prismatic Cylinders,25108-WH-3S,3.80,40,640,active,
+Prismatic Cylinders,15108-CL-3S,4.35,40,640,active,
+Prismatic Cylinders,15108-WH-3S,4.35,40,640,active,
+Jelly Jars,25001-CL-3F,3.20,75,1200,active,
+Jelly Jars,25001-CL-3S,3.20,75,1200,active,
+Security Enclosures,84202-WH,3.80,50,2250,active,
+Security Enclosures,84203-CL,5.15,16,384,active,
+Security Enclosures,84203-LD,5.15,16,384,active,
+Security Enclosures,84203-CC,5.15,16,384,active,
+Security Enclosures,84204-CL,3.60,30,1350,active,
+Security Enclosures,84204-LD,3.60,30,1350,active,
+Security Enclosures,84204-CC,,30,,call_for_quote,STD SKID = MOQ
+Security Enclosures,84205-CL,6.05,5,360,active,
+Security Enclosures,84205-LD,6.90,5,360,active,
+Security Enclosures,84205-CC,,5,,call_for_quote,STD SKID = MOQ
+Security Enclosures,84206-CL,3.65,30,1350,active,
+Security Enclosures,84206-LD,4.00,30,1350,active,
+Security Enclosures,84206-CC,,30,,call_for_quote,STD SKID = MOQ
+Drum Lens,25011-WH,4.95,6,162,active,
+Drum Lens,25014-WH,6.65,8,216,active,
+High Bay & Accessories,84208-4C-LD,16.65,9,216,active,
+High Bay & Accessories,84208-4C-LD-XX,16.65,9,216,active,
+High Bay & Accessories,84208-4C-CL,,9,,call_for_quote,STD SKID = MOQ
+High Bay & Accessories,84208-4C-CL-XX,,9,,call_for_quote,STD SKID = MOQ
+High Bay & Accessories,84208-4C-PC,,9,,call_for_quote,STD SKID = MOQ
+High Bay & Accessories,84208-4C-PC-XX,,9,,call_for_quote,STD SKID = MOQ
+High Bay & Accessories,84208PRZ-4C-CL,14.60,9,216,active,
+High Bay & Accessories,84208-PRZ-4C-LD,16.10,9,216,active,
+High Bay & Accessories,84208PRZ-4C-PC,,9,,call_for_quote,STD SKID = MOQ
+High Bay & Accessories,84208PRZ-4C-CC,,9,,call_for_quote,STD SKID = MOQ
+High Bay & Accessories,84209-LD,11.40,9,,active,STD SKID = TBD
+High Bay & Accessories,84209-CL,,9,,call_for_quote,STD SKID = TBD
+High Bay & Accessories,CP-ROUND-.118X16.00-LD,,18,,call_for_quote,STD SKID = TBD
+High Bay & Accessories,98-CLAMP16-805227,,,,call_for_quote,STD PACK/SKID = TBD
+High Bay & Accessories,98-CLAMP22-805320,,,,call_for_quote,STD PACK/SKID = TBD
+22 inch Drop Lens,84210-CL,20.70,5,,active,STD SKID = MOQ
+22 inch Drop Lens,84210-LD,,5,,call_for_quote,STD SKID = MOQ
+22 inch Drop Lens,84210-CC,,5,,call_for_quote,STD SKID = MOQ
+Ellipsoids,67100-CL,,1,16,call_for_quote,
+Ellipsoids,67100-WH,,1,16,call_for_quote,
+Ellipsoids,67100-BR,,1,16,call_for_quote,
+Ellipsoids,67200-CL,,1,6,call_for_quote,
+Ellipsoids,67200-WH,,1,6,call_for_quote,
+Ellipsoids,67200-BR,,1,6,call_for_quote,
+Ellipsoids,67300-CL,,1,,call_for_quote,STD SKID = TBD
+Ellipsoids,67300-WH,,1,,call_for_quote,STD SKID = TBD
+Ellipsoids,67300-BR,,1,,call_for_quote,STD SKID = TBD
+Ellipsoids,67400-CL,,1,,call_for_quote,STD SKID = TBD
+Ellipsoids,67400-WH,,1,,call_for_quote,STD SKID = TBD
+Ellipsoids,67400-BR,,1,,call_for_quote,STD SKID = TBD
+Hemisoids,67101-CL,,2,,call_for_quote,STD SKID = TBD
+Hemisoids,67101-WH,,2,,call_for_quote,STD SKID = TBD
+Hemisoids,67101-BR,,2,,call_for_quote,STD SKID = TBD
+Hemisoids,67201-CL,,2,,call_for_quote,STD SKID = TBD
+Hemisoids,67201-WH,,2,,call_for_quote,STD SKID = TBD
+Hemisoids,67201-BR,,2,,call_for_quote,STD SKID = TBD
+Hemisoids,67301-CL,,1,,call_for_quote,STD SKID = TBD
+Hemisoids,67301-WH,,1,,call_for_quote,STD SKID = TBD
+Hemisoids,67301-BR,,1,,call_for_quote,STD SKID = TBD
+Hemisoids,67401-CL,,1,,call_for_quote,STD SKID = TBD
+Hemisoids,67401-WH,,1,,call_for_quote,STD SKID = TBD
+Hemisoids,67401-BR,,1,,call_for_quote,STD SKID = TBD
+Hemispheres,60106-CL,,,,call_for_quote,STD PACK/SKID = TBD
+Hemispheres,60106-WH,,,,call_for_quote,STD PACK/SKID = TBD
+Hemispheres,60106-BR,,,,call_for_quote,STD PACK/SKID = TBD
+Hemispheres,60108-CL,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60108-WH,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60108-BR,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60110-CL,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60110-WH,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60110-BR,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60112-CL,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60112-WH,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60112-BR,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60114-CL,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60114-WH,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60114-BR,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60116-CL,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60116-WH,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60116-BR,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60118-CL,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60118-WH,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60118-BR,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60120-CL,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60120-WH,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60120-BR,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60122-CL,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60122-WH,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60122-BR,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60124-CL,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60124-WH,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60124-BR,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60127-CL,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60127-WH,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60127-BR,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60130-CL,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60130-WH,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60130-BR,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60136-CL,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60136-WH,,5,,call_for_quote,STD SKID = TBD
+Hemispheres,60136-BR,,5,,call_for_quote,STD SKID = TBD
+Dome Lenses,22008-CL,43.60,4,180,active,
+Dome Lenses,22008-WH,43.60,4,180,active,
+Dome Lenses,22009-CL,51.00,1,48,active,
+Dome Lenses,22009-WH,59.70,1,48,active,
+Dome Lenses,22010-CL,51.00,1,48,active,
+Dome Lenses,22010-WH,59.70,1,48,active,
+Dome Lenses,22012-CL,51.00,1,27,active,
+Dome Lenses,22012-WH,59.70,1,27,active,
+Dome Lenses,12008-CL,53.20,4,180,active,
+Dome Lenses,12008-WH,53.20,4,180,active,
+Dome Lenses,12009-CL,56.85,1,48,active,
+Dome Lenses,12009-WH,62.10,1,48,active,
+Dome Lenses,12010-CL,56.85,1,48,active,
+Dome Lenses,12010-WH,62.10,1,48,active,
+Dome Lenses,12012-CL,56.85,1,27,active,
+Dome Lenses,12012-WH,62.10,1,27,active,
+Flanged Dome Lenses,22013-CL,64.25,1,27,active,
+Flanged Dome Lenses,22013-WH,73.45,1,27,active,
+Flanged Dome Lenses,22013-LD,71.85,1,27,active,
+Flanged Dome Lenses,12013-CL,56.85,1,27,active,
+Flanged Dome Lenses,12013-WH,62.05,1,27,active,
+Cubes,20108-CL-XX,25.85,1,120,active,
+Cubes,20108-WH-XX,28.85,1,120,active,
+Cubes,20108-BR-XX,,1,,call_for_quote,STD SKID = MOQ
+Cubes,20108-SM-XX,,1,,call_for_quote,STD SKID = MOQ
+Cubes,20108-LD-XX,,1,,call_for_quote,STD SKID = MOQ
+Cubes,20110-CL-XX,30.20,1,72,active,
+Cubes,20110-WH-XX,33.20,1,72,active,
+Cubes,20110-BR-XX,,1,,call_for_quote,STD SKID = MOQ
+Cubes,20110-SM-XX,,1,,call_for_quote,STD SKID = MOQ
+Cubes,20110-LD-XX,,1,,call_for_quote,STD SKID = MOQ
+Cubes,10110-CL-XX,,1,,call_for_quote,STD SKID = MOQ
+Cubes,10110-WH-XX,,1,,call_for_quote,STD SKID = MOQ
+Cubes,20112-CL-XX,48.05,1,45,active,
+Cubes,20112-WH-XX,51.00,1,45,active,
+Cubes,20112-BR-XX,,1,,call_for_quote,STD SKID = MOQ
+Cubes,20112-SM-XX,,1,,call_for_quote,STD SKID = MOQ
+Cubes,20112-LD-XX,,1,,call_for_quote,STD SKID = MOQ
+Cubes,10112-CL-XX,,1,,call_for_quote,STD SKID = MOQ
+Cubes,10112-WH-XX,,1,,call_for_quote,STD SKID = MOQ
+Cubes,20115-CL-XX,54.00,1,45,active,
+Cubes,20115-WH-XX,56.85,1,45,active,
+Cubes,20115-BR-XX,,1,45,call_for_quote,
+Cubes,20115-SM-XX,,1,,call_for_quote,STD SKID = MOQ
+Cubes,20115-LD-XX,,1,,call_for_quote,STD SKID = MOQ
+Cubes,10115-CL-XX,58.30,1,45,active,
+Cubes,10115-WH-XX,,1,,call_for_quote,STD SKID = MOQ
+Neck Fitters,98003-A,,,,call_for_quote,N/A pack/skid
+Neck Fitters,98004-A,,,,call_for_quote,N/A pack/skid
+Neck Fitters,98005-A,,,,call_for_quote,N/A pack/skid
+Neck Fitters,98006-P,5.90,,,active,N/A pack/skid
+Neck Fitters,98007-A,,,,call_for_quote,N/A pack/skid
+Neck Fitters,98007.5-A,,,,call_for_quote,N/A pack/skid
+Neck Fitters,98008-P,7.20,,,active,N/A pack/skid
+Neck Fitters,98008-PSPEC-WHT,9.95,,,active,N/A pack/skid
+Neck Fitters,98008-PSPEC-BLK,9.95,,,active,N/A pack/skid
+Neck Fitters,98009-A,9.00,,,active,N/A pack/skid
+Neck Fitters,98009-A-SL,,,,call_for_quote,N/A pack/skid
+Neck Fitters,98010-A,,,,call_for_quote,N/A pack/skid
+Split Neck Fitters,98-SPLIT-8.5-LOOSE,6.15,,,active,Loose configuration
+Split Neck Fitters,98-SPLIT-8.5-SNAPPED,7.80,,,active,Snapped-on configuration
+Split Neck Fitters,98-SPLIT-8.5-POPRIVET,10.35,,,active,Pop-riveted configuration
+Split Neck Fitters,98-SPLIT-9-LOOSE,6.15,,,active,Loose configuration
+Split Neck Fitters,98-SPLIT-9-SNAPPED,7.80,,,active,Snapped-on configuration
+Split Neck Fitters,98-SPLIT-9-POPRIVET,10.35,,,active,Pop-riveted configuration
+Aluminum Heat Shields,96005-BLK,,,,call_for_quote,
+Aluminum Heat Shields,96005-WHT,,,,call_for_quote,
+Aluminum Heat Shields,96007-BLK,,,,call_for_quote,
+Aluminum Heat Shields,96007-WHT,,,,call_for_quote,
+Aluminum Heat Shields,96104-A,,,,call_for_quote,
+Aluminum Heat Shields,96106-A,,,,call_for_quote,
+Aluminum Heat Shields,96108-A,,,,call_for_quote,
+Aluminum Heat Shields,97000-BLK,,,,call_for_quote,Polycarbonate
+Aluminum Heat Shields,97000-WHT,,,,call_for_quote,Polycarbonate
+Post Top Fitters,99-S071-BLK,7.15,50,2250,active,
+Post Top Fitters,99-S071-WHT,7.15,50,2250,active,
+Post Top Fitters,99-S072-BLK,7.15,50,2250,active,
+Post Top Fitters,99-S072-WHT,7.15,50,2250,active,
+Post Top Fitters,99-S048-BLK,7.15,50,2250,active,
+Post Top Fitters,99-S048-WHT,7.15,50,2250,active,
+Post Top Fitters,99-SM071-BLK,,24,,call_for_quote,STD SKID = TBD
+Accessories,98-ATOP-WASH,,,,call_for_quote,STD PACK/SKID = TBD
+Accessories,98-ATOP-WASH-66,,,,call_for_quote,STD PACK/SKID = TBD
+Accessories,98-ATOP-WASH-88230,,,,call_for_quote,STD PACK/SKID = TBD
+Accessories,99-FINIAL-BLK,4.20,100,,active,STD SKID = TBD
+Accessories,99-FINIAL-TH,3.55,,,active,Finial hardware only
+Accessories,89103-WHT,,,,call_for_quote,STD PACK/SKID = TBD
+Accessories,89000-BLK,,4,48,call_for_quote,
+Accessories,99-DSR12-TM-ASS,,,,discontinued,
+Accessories,99-DSR12-BMED-ASS,48.30,,,active,STD SKID = TBD
+Accessories,99-DSR12-BMOG-ASS,48.30,,,active,STD SKID = TBD
+Lite Lids,99-LL15-P,,,,call_for_quote,425 optical refractor; STD PACK/SKID = TBD
+Lite Lids,99-LL15-NP,,,,call_for_quote,425 optical refractor; STD PACK/SKID = TBD
+Pole Base Covers,84211-BC,,8,,call_for_quote,STD SKID = MOQ
+Pole Base Covers,84211-BZ,,8,,call_for_quote,STD SKID = MOQ
+Pole Base Covers,84211-PC,,8,,call_for_quote,STD SKID = MOQ
+Pole Base Covers,84212-BC,,9,,call_for_quote,STD SKID = MOQ
+Pole Base Covers,84212-BZ,,9,,call_for_quote,STD SKID = MOQ
+Pole Base Covers,84212-PC,,9,,call_for_quote,STD SKID = MOQ
+Pole Base Covers,84213-BC,,9,,call_for_quote,STD SKID = MOQ
+Pole Base Covers,84213-BZ,,9,,call_for_quote,STD SKID = MOQ
+Pole Base Covers,84213-PC,,9,,call_for_quote,STD SKID = MOQ

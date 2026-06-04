@@ -32,6 +32,7 @@ cloud_sql_proxy
 *.log
 # Data exports & dumps — NEVER commit
 *.csv
+!data/*.csv
 *.dump
 *.backup
 seed_real.sql
