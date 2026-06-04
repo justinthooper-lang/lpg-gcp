@@ -28,6 +28,7 @@ the system looks the way it does.
 | [0011](./0011-cloud-run-deploy-architecture.md) | Webhook handler deploy architecture on Cloud Run | Accepted |
 | [0012](./0012-iam-database-auth.md) | IAM database authentication on Cloud Run | Accepted |
 | [0013](./0013-url-token-auth-for-shift4.md) | URL token authentication for Shift4 webhooks | Accepted |
+| [0014](./0014-vendor-pricing-snapshot-pattern.md) | Vendor pricing snapshots — PDF, CSV, seed script | Accepted |
 
 ## How to add a new ADR
 
