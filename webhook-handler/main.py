@@ -23,7 +23,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from pg8000.exceptions import DatabaseError, InterfaceError
 from pydantic import ValidationError
-from auth import verify_token
+from auth import verify_token, is_authorized_read
 from db import get_connection
 from ingest import ingest_order
 from logging_config import configure_logging
@@ -221,7 +221,7 @@ async def list_orders(request: Request):
     a safe subset of columns — no raw_payload (contains PII).
     """
     received_token = request.query_params.get("token")
-    if not verify_token(received_token):
+    if not is_authorized_read(received_token):
         return JSONResponse(
             status_code=401,
             content={"error": "invalid or missing token"},
@@ -349,7 +349,7 @@ async def list_orders_html(request: Request):
 async def get_order(order_id: int, request: Request):
     """Detail view of a single order, with line items and shipments."""
     received_token = request.query_params.get("token")
-    if not verify_token(received_token):
+    if not is_authorized_read(received_token):
         return JSONResponse(
             status_code=401,
             content={"error": "invalid or missing token"},

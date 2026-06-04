@@ -56,3 +56,31 @@ def verify_token(received_token: str | None) -> bool:
 
     log.warning("webhook_token_mismatch")
     return False
+
+
+def is_admin_service() -> bool:
+    """True if this process is running as the IAM-protected admin service.
+
+    Cloud Run sets K_SERVICE to the service name. When K_SERVICE is
+    'lpg-admin', the Google frontend has already verified the caller's
+    identity via IAM before the request reached us, so the URL-token
+    check becomes redundant and can be skipped.
+
+    For any other K_SERVICE value (e.g. 'webhook-handler') or when
+    K_SERVICE is unset (local dev), this returns False and callers
+    should still verify the URL token.
+    """
+    return os.getenv("K_SERVICE") == "lpg-admin"
+
+
+def is_authorized_read(received_token: str | None) -> bool:
+    """Authorization gate for read endpoints.
+
+    Read endpoints are dual-served: on `lpg-admin` (IAM-protected) and
+    on `webhook-handler` (public, URL-token protected). This helper
+    centralizes the per-service decision so route handlers don't have
+    to care which service they're running on.
+    """
+    if is_admin_service():
+        return True
+    return verify_token(received_token)
