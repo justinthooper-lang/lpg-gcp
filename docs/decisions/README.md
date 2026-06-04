@@ -29,6 +29,7 @@ the system looks the way it does.
 | [0012](./0012-iam-database-auth.md) | IAM database authentication on Cloud Run | Accepted |
 | [0013](./0013-url-token-auth-for-shift4.md) | URL token authentication for Shift4 webhooks | Accepted |
 | [0014](./0014-vendor-pricing-snapshot-pattern.md) | Vendor pricing snapshots — PDF, CSV, seed script | Accepted |
+| [0015](./0015-split-webhook-and-admin-services.md) | Split webhook-handler and lpg-admin into separate Cloud Run services | Accepted |
 
 ## How to add a new ADR
 
