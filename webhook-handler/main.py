@@ -23,7 +23,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from pg8000.exceptions import DatabaseError, InterfaceError
 from pydantic import ValidationError
-from auth import verify_token, is_authorized_read
+from auth import verify_token, is_authorized_read, is_admin_service
 from db import get_connection
 from ingest import ingest_order
 from logging_config import configure_logging
@@ -209,7 +209,6 @@ async def shift4_order_created(request: Request):
         "ingested": True,
         **result,
     }
-@app.get("/orders")
 async def list_orders(request: Request):
     """List recent orders (authenticated read endpoint).
 
@@ -279,7 +278,6 @@ async def list_orders(request: Request):
 
     return {"count": len(orders), "orders": orders}
 
-@app.get("/orders.html", response_class=HTMLResponse)
 async def list_orders_html(request: Request):
     """HTML view of recent orders. Same auth/data as /orders."""
     # Reuse the JSON endpoint's logic by calling it.
@@ -345,7 +343,6 @@ async def list_orders_html(request: Request):
 
     return HTMLResponse(content=html)
 
-@app.get("/orders/{order_id:int}")
 async def get_order(order_id: int, request: Request):
     """Detail view of a single order, with line items and shipments."""
     received_token = request.query_params.get("token")
@@ -487,7 +484,6 @@ async def get_order(order_id: int, request: Request):
 
     return order
 
-@app.get("/orders/{order_id}.html", response_class=HTMLResponse)
 async def get_order_html(order_id: int, request: Request):
     """HTML view of a single order. Same auth/data as /orders/{id}."""
     response_data = await get_order(order_id, request)
@@ -590,3 +586,25 @@ async def get_order_html(order_id: int, request: Request):
 </html>"""
 
     return HTMLResponse(content=html)
+
+# Read endpoints are registered only when running as the lpg-admin
+# service (IAM-protected) or locally for development (no K_SERVICE).
+# On webhook-handler in production, these routes simply don't exist —
+# Cloud Run returns FastAPI's default 404 with no application code
+# running. See ADR-0015.
+import os
+_K_SERVICE = os.getenv("K_SERVICE")
+if is_admin_service() or _K_SERVICE is None:
+    app.add_api_route("/orders", list_orders, methods=["GET"])
+    app.add_api_route(
+        "/orders.html", list_orders_html, methods=["GET"],
+        response_class=HTMLResponse,
+    )
+    app.add_api_route(
+        "/orders/{order_id:int}", get_order, methods=["GET"],
+    )
+    
+    app.add_api_route(
+        "/orders/{order_id}.html", get_order_html, methods=["GET"],
+        response_class=HTMLResponse,
+    )
