@@ -608,3 +608,9 @@ if is_admin_service() or _K_SERVICE is None:
         "/orders/{order_id}.html", get_order_html, methods=["GET"],
         response_class=HTMLResponse,
     )
+
+
+@app.get("/webhooks/shift4/order-created")
+async def shift4_order_created_probe():
+    """Respond 200 to Shift4's pre-POST GET probe."""
+    return {"status": "ready", "method": "GET", "expects": "POST"}
