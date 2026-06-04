@@ -502,7 +502,6 @@ async def get_order_html(order_id: int, request: Request):
             <td>{i['sku']}</td>
             <td style="text-align:right">{i['quantity']}</td>
             <td style="text-align:right">${i['unit_price']}</td>
-            <td style="text-align:right; color:#888">${i['unit_cost_shift4'] or '—'}</td>
             <td style="text-align:right">{'<strong>$' + i['vendor_cost'] + '</strong>' if i['vendor_cost'] else '<span style="color:#bbb">— not mapped</span>'}</td>
         </tr>
         """
@@ -567,7 +566,6 @@ async def get_order_html(order_id: int, request: Request):
                 <th>SKU</th>
                 <th style="text-align:right">Qty</th>
                 <th style="text-align:right">Unit Price</th>
-                <th style="text-align:right; color:#888">Shift4 Cost</th>
                 <th style="text-align:right">Real Cost</th>
             </tr>
         </thead>
