@@ -413,19 +413,32 @@ async def get_order(order_id: int, request: Request):
 
                 cur.execute(
                     """
-                    SELECT sku, quantity, unit_price, item_unit_cost_shift4
-                    FROM shift4.order_items
-                    WHERE shift4_order_id = %s
-                    ORDER BY id
+                    SELECT
+                        oi.id,
+                        oi.sku,
+                        oi.quantity,
+                        oi.unit_price,
+                        oi.item_unit_cost_shift4,
+                        SUM(vs.unit_cost * pc.quantity) AS vendor_cost
+                    FROM shift4.order_items oi
+                    LEFT JOIN lpg.product_components pc
+                        ON pc.product_sku = oi.sku
+                    LEFT JOIN lpg.vendor_skus vs
+                        ON vs.vendor_sku_id = pc.vendor_sku_id
+                    WHERE oi.shift4_order_id = %s
+                    GROUP BY oi.id, oi.sku, oi.quantity, oi.unit_price,
+                             oi.item_unit_cost_shift4
+                    ORDER BY oi.id
                     """,
                     (order_id,),
                 )
                 order["items"] = [
                     {
-                        "sku": r[0],
-                        "quantity": r[1],
-                        "unit_price": str(r[2]),
-                        "unit_cost": str(r[3]) if r[3] is not None else None,
+                        "sku": r[1],
+                        "quantity": r[2],
+                        "unit_price": str(r[3]),
+                        "unit_cost_shift4": str(r[4]) if r[4] is not None else None,
+                        "vendor_cost": str(r[5]) if r[5] is not None else None,
                     }
                     for r in cur.fetchall()
                 ]
@@ -489,7 +502,8 @@ async def get_order_html(order_id: int, request: Request):
             <td>{i['sku']}</td>
             <td style="text-align:right">{i['quantity']}</td>
             <td style="text-align:right">${i['unit_price']}</td>
-            <td style="text-align:right">${i['unit_cost'] or '—'}</td>
+            <td style="text-align:right; color:#888">${i['unit_cost_shift4'] or '—'}</td>
+            <td style="text-align:right">{'<strong>$' + i['vendor_cost'] + '</strong>' if i['vendor_cost'] else '<span style="color:#bbb">— not mapped</span>'}</td>
         </tr>
         """
         for i in o["items"]
@@ -553,8 +567,10 @@ async def get_order_html(order_id: int, request: Request):
                 <th>SKU</th>
                 <th style="text-align:right">Qty</th>
                 <th style="text-align:right">Unit Price</th>
-                <th style="text-align:right">Unit Cost</th>
+                <th style="text-align:right; color:#888">Shift4 Cost</th>
+                <th style="text-align:right">Real Cost</th>
             </tr>
+        </thead>
         </thead>
         <tbody>{items_html}</tbody>
     </table>
