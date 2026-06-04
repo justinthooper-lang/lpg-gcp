@@ -292,7 +292,7 @@ async def list_orders_html(request: Request):
     rows_html = "".join(
         f"""
         <tr>
-            <td><a href="/orders/{o['shift4_order_id']}.html?token={request.query_params.get('token', '')}">{o['shift4_order_id']}</a></td>
+            <td><a href="/orders/{o['shift4_order_id']}.html">{o['shift4_order_id']}</a></td>
             <td>{o['invoice_number'] or ''}</td>
             <td>{o['customer_name']}</td>
             <td>{o['email'] or ''}</td>
