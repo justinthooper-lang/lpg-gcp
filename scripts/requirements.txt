@@ -1,0 +1,14 @@
+# Dependencies for scripts/sync_crown_invoices.py (and future scripts
+# that talk to Microsoft Graph and parse PDFs).
+#
+# When we deploy the Cloud Run job, this file becomes the container's
+# requirements.txt. Kept separate from webhook-handler/requirements.txt
+# so the webhook image doesn't carry MS Graph + PDF parsing deps it
+# doesn't need.
+
+msal==1.31.1
+pdfplumber==0.11.4
+pg8000==1.31.5
+cloud-sql-python-connector==1.20.3
+requests==2.34.2
+structlog==25.5.0
