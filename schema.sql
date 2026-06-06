@@ -360,3 +360,94 @@ CREATE TRIGGER trg_product_components_updated_at
 
 CREATE INDEX IF NOT EXISTS idx_product_components_product    ON lpg.product_components(product_sku);
 CREATE INDEX IF NOT EXISTS idx_product_components_vendor_sku ON lpg.product_components(vendor_sku_id);
+
+-- ============================================================
+-- LPG: vendor_invoices
+-- ============================================================
+-- One row per Crown invoice PDF ingested from email. Soft-joined to
+-- shift4.orders via customer_po_number = shift4.orders.invoice_number
+-- (no FK; supports direct-Crown invoices outside our Shift4 PO range).
+-- See ADR-0016.
+
+CREATE TABLE IF NOT EXISTS lpg.vendor_invoices (
+    vendor_invoice_id       BIGSERIAL PRIMARY KEY,
+    vendor_id               BIGINT NOT NULL REFERENCES lpg.vendors(vendor_id),
+    vendor_invoice_number   TEXT NOT NULL,
+    vendor_order_number     TEXT,
+    customer_po_number      TEXT,
+    invoice_date            DATE,
+    ship_date               DATE,
+    ship_via                TEXT,
+    tracking_numbers        TEXT[],
+    freight_type            TEXT,
+    freight_truck           NUMERIC(12,2),
+    freight_ups             NUMERIC(12,2),
+    subtotal                NUMERIC(12,2),
+    sale_amount             NUMERIC(12,2),
+    amount_received         NUMERIC(12,2),
+    balance_due             NUMERIC(12,2),
+    is_replacement          BOOLEAN NOT NULL DEFAULT FALSE,
+    raw_pdf_filename        TEXT,
+    graph_message_id        TEXT NOT NULL,
+    synced_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_vendor_invoices_graph_message_id') THEN
+        ALTER TABLE lpg.vendor_invoices ADD CONSTRAINT uq_vendor_invoices_graph_message_id UNIQUE (graph_message_id);
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_vendor_invoice_number') THEN
+        ALTER TABLE lpg.vendor_invoices ADD CONSTRAINT uq_vendor_invoice_number UNIQUE (vendor_id, vendor_invoice_number);
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_vendor_invoices_freight_type') THEN
+        ALTER TABLE lpg.vendor_invoices ADD CONSTRAINT chk_vendor_invoices_freight_type
+            CHECK (freight_type IS NULL OR freight_type IN ('ups', 'truck'));
+    END IF;
+END $$;
+
+DROP TRIGGER IF EXISTS trg_vendor_invoices_updated_at ON lpg.vendor_invoices;
+CREATE TRIGGER trg_vendor_invoices_updated_at
+    BEFORE UPDATE ON lpg.vendor_invoices
+    FOR EACH ROW EXECUTE FUNCTION lpg.set_updated_at();
+
+CREATE INDEX IF NOT EXISTS idx_vendor_invoices_po   ON lpg.vendor_invoices(customer_po_number);
+CREATE INDEX IF NOT EXISTS idx_vendor_invoices_date ON lpg.vendor_invoices(invoice_date);
+
+-- ============================================================
+-- LPG: vendor_invoice_lines
+-- ============================================================
+-- One row per L/I (line item) on an invoice. vendor_sku_id is nullable
+-- because the PDF may reference a SKU we haven't seeded yet; populated
+-- later by re-running scripts/seed_crown_pricing.py. See ADR-0016.
+
+CREATE TABLE IF NOT EXISTS lpg.vendor_invoice_lines (
+    vendor_invoice_line_id  BIGSERIAL PRIMARY KEY,
+    vendor_invoice_id       BIGINT NOT NULL
+                                REFERENCES lpg.vendor_invoices(vendor_invoice_id)
+                                ON DELETE CASCADE,
+    line_number             INTEGER NOT NULL,
+    vendor_sku_code         TEXT NOT NULL,
+    vendor_sku_id           BIGINT REFERENCES lpg.vendor_skus(vendor_sku_id),
+    qty_shipped             INTEGER NOT NULL,
+    qty_backorder           INTEGER NOT NULL DEFAULT 0,
+    uom                     TEXT,
+    unit_price              NUMERIC(12,4),
+    extended_price          NUMERIC(12,2),
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_invoice_line') THEN
+        ALTER TABLE lpg.vendor_invoice_lines ADD CONSTRAINT uq_invoice_line UNIQUE (vendor_invoice_id, line_number);
+    END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_invoice_lines_sku ON lpg.vendor_invoice_lines(vendor_sku_code);
