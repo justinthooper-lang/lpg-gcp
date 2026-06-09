@@ -441,6 +441,7 @@ CREATE TABLE IF NOT EXISTS lpg.vendor_invoice_lines (
     uom                     TEXT,
     unit_price              NUMERIC(12,4),
     extended_price          NUMERIC(12,2),
+    is_fee                  BOOLEAN NOT NULL DEFAULT FALSE,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -450,4 +451,9 @@ DO $$ BEGIN
     END IF;
 END $$;
 
-CREATE INDEX IF NOT EXISTS idx_invoice_lines_sku ON lpg.vendor_invoice_lines(vendor_sku_code);
+CREATE INDEX IF NOT EXISTS idx_invoice_lines_sku
+    ON lpg.vendor_invoice_lines (vendor_sku_code);
+
+CREATE INDEX IF NOT EXISTS idx_invoice_lines_is_fee
+    ON lpg.vendor_invoice_lines (is_fee)
+    WHERE is_fee = TRUE;
