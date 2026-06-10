@@ -39,8 +39,11 @@ FULL_IMAGE="${IMAGE_REPO}:${VERSION}"
 
 echo "=== Build ==="
 echo "Image: ${FULL_IMAGE}"
-cd "$(dirname "$0")/../webhook-handler"
-gcloud builds submit --tag "${FULL_IMAGE}"
+cd "$(dirname "$0")/.."
+gcloud builds submit \
+    --config cloudbuild.webhook.yaml \
+    --substitutions=_TAG="${VERSION}" \
+    .
 
 echo
 echo "=== Deploy webhook-handler ==="

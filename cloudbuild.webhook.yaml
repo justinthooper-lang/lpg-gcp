@@ -1,0 +1,14 @@
+# Cloud Build config for the webhook-handler service image.
+# Build context is the repo root so lpg_common/ is reachable.
+# Invoked by deploy.sh; the _TAG substitution sets the version.
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'us-west1-docker.pkg.dev/lpg-dev-496820/lpg-images/webhook-handler:${_TAG}'
+      - '-f'
+      - 'Dockerfile.webhook'
+      - '.'
+images:
+  - 'us-west1-docker.pkg.dev/lpg-dev-496820/lpg-images/webhook-handler:${_TAG}'

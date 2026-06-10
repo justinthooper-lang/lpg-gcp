@@ -1,0 +1,27 @@
+# syntax=docker/dockerfile:1.6
+# Webhook-handler service image. Built from repo root so it can pull in
+# the shared lpg_common package. Deployed to Cloud Run services
+# webhook-handler and lpg-admin (same image, see deploy.sh / ADR-0011).
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# Shared package first (changes rarely) — copy and install it so
+# `from lpg_common.db import ...` resolves. Installing it also pulls in
+# the DB dependency stack (pg8000, cloud-sql-connector, google-auth).
+COPY lpg_common/ ./lpg_common/
+RUN pip install --no-cache-dir ./lpg_common
+
+# Then the service's own dependencies.
+COPY webhook-handler/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# App code last, so .py edits don't bust the dependency cache layers.
+COPY webhook-handler/*.py ./
+
+ENV PORT=8080
+EXPOSE 8080
+CMD exec uvicorn main:app --host 0.0.0.0 --port ${PORT}

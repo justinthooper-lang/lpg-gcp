@@ -1,0 +1,23 @@
+# Python
+**/.venv/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+*.egg-info/
+
+# Git / project meta
+.git/
+.gitignore
+docs/
+migrations/
+data/
+*.md
+
+# Local-only test artifacts
+**/smoke_*.py
+**/test_payload.json
+**/*.json
