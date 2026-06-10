@@ -8,7 +8,7 @@ Run: python smoke_ingest.py
 
 import json
 
-from db import get_connection
+from lpg_common.db import get_connection
 from ingest import ingest_order
 from shift4_models import Shift4OrderPayload
 

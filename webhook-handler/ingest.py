@@ -13,7 +13,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
-from db import get_connection
+from lpg_common.db import get_connection
 from shift4_models import ORDER_STATUS_MAP, Shift4OrderPayload
 
 

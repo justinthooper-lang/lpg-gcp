@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lpg-common"
+version = "0.1.0"
+description = "Shared LPG back-office modules (DB connection, models) used by the webhook service and Cloud Run jobs."
+requires-python = ">=3.12"
+
+# DB connection stack — lpg_common owns get_connection(), so these flow
+# to every component that depends on lpg_common (webhook service + jobs).
+dependencies = [
+    "pg8000==1.31.5",
+    "cloud-sql-python-connector==1.20.3",
+    "google-auth==2.53.0",
+]
+
+[tool.setuptools]
+packages = ["lpg_common"]
+
+[tool.setuptools.package-dir]
+lpg_common = "."

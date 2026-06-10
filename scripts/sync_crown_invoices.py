@@ -30,10 +30,9 @@ from msal import ConfidentialClientApplication
 
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 
-# Sibling + webhook-handler modules on path (robust to cwd).
+# crown_invoice_parser / _writer are siblings in this dir (not yet packaged).
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _HERE)
-sys.path.insert(0, os.path.join(_HERE, "..", "webhook-handler"))
 
 from crown_invoice_parser import (  # noqa: E402
     InvoiceReconcileError,
@@ -41,7 +40,7 @@ from crown_invoice_parser import (  # noqa: E402
     parse_crown_invoice,
 )
 from crown_invoice_writer import write_crown_invoice  # noqa: E402
-from db import get_connection  # noqa: E402
+from lpg_common.db import get_connection  # noqa: E402
 
 CROWN_VENDOR_CODE = "CROWN"
 

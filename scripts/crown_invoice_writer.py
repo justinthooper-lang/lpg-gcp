@@ -158,8 +158,7 @@ if __name__ == "__main__":
     with open(pdf_path, "rb") as f:
         parsed = parse_crown_invoice(f.read())
 
-    sys.path.insert(0, "webhook-handler")
-    from db import get_connection
+    from lpg_common.db import get_connection
 
     with get_connection() as conn:
         result = write_crown_invoice(

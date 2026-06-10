@@ -3,7 +3,7 @@
 Run: python smoke_db.py
 """
 
-from db import get_connection
+from lpg_common.db import get_connection
 
 with get_connection() as conn:
     cur = conn.cursor()

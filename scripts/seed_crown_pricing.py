@@ -22,11 +22,7 @@ import sys
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
-# Add webhook-handler to path so we can import db.py.
-REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT / "webhook-handler"))
-
-from db import get_connection  # noqa: E402
+from lpg_common.db import get_connection
 
 VENDOR_CODE = "CROWN"
 

@@ -33,10 +33,7 @@ import csv
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT / "webhook-handler"))
-
-from db import get_connection  # noqa: E402
+from lpg_common.db import get_connection
 
 VENDOR_CODE = "CROWN"
 

@@ -24,7 +24,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from pg8000.exceptions import DatabaseError, InterfaceError
 from pydantic import ValidationError
 from auth import verify_token, is_authorized_read, is_admin_service
-from db import get_connection
+from lpg_common.db import get_connection
 from ingest import ingest_order
 from logging_config import configure_logging
 from shift4_models import ORDER_STATUS_MAP, Shift4OrderPayload
