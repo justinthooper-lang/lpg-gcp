@@ -3,8 +3,12 @@
 Production: runs as a Cloud Run job, scheduled daily by Cloud Scheduler.
 Local dev: run with env vars set, against the local Cloud SQL Proxy.
 
-This is checkpoint 1: OAuth + "who can we see" Graph call only.
-Actual message fetching, PDF parsing, and DB writes come next.
+Pipeline per message:
+    Graph fetch PDF bytes -> parse_crown_invoice() -> write_crown_invoice()
+
+Crown sends two identical emails per invoice; dedup on invoice number
+(in the writer) makes that a no-op. Order Confirmations are excluded by
+the subject filter and, defensively, rejected by the parser's guard.
 
 Required env vars:
     AZURE_TENANT_ID
@@ -17,6 +21,7 @@ See ADR-0016 for design.
 
 from __future__ import annotations
 
+import base64
 import os
 import sys
 
@@ -24,6 +29,21 @@ import requests
 from msal import ConfidentialClientApplication
 
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
+
+# Sibling + webhook-handler modules on path (robust to cwd).
+_HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _HERE)
+sys.path.insert(0, os.path.join(_HERE, "..", "webhook-handler"))
+
+from crown_invoice_parser import (  # noqa: E402
+    InvoiceReconcileError,
+    NotAnInvoiceError,
+    parse_crown_invoice,
+)
+from crown_invoice_writer import write_crown_invoice  # noqa: E402
+from db import get_connection  # noqa: E402
+
+CROWN_VENDOR_CODE = "CROWN"
 
 
 def _require_env(name: str) -> str:
@@ -45,58 +65,41 @@ def get_access_token() -> str:
         client_credential=client_secret,
         authority=f"https://login.microsoftonline.com/{tenant_id}",
     )
-
-    # ".default" requests all the *application* permissions Azure has
-    # granted to this app — for us, just Mail.Read (Application).
-    # This is the right scope for client-credentials flow; you don't
-    # request individual scopes the way delegated flow does.
     result = app.acquire_token_for_client(
         scopes=["https://graph.microsoft.com/.default"]
     )
-
     if "access_token" not in result:
         print(f"ERROR: token acquisition failed: {result}", file=sys.stderr)
         sys.exit(1)
-
     return result["access_token"]
 
 
-def main() -> int:
-    print("Acquiring access token...")
-    token = get_access_token()
-    print(f"  Token acquired ({len(token)} chars)")
+# --- Crown invoice identification ----------------------------------------
+# A forwarded email's From is rewritten to the forwarding mailbox, so we
+# must NOT key on sender. What survives a forward intact is the subject
+# signature and the invoice PDF attachment. See ADR-0016 / ADR-0017.
+CROWN_SUBJECT_MARKERS = ("invoice/tracking information", "crown plastics")
+CROWN_ATTACHMENT_PREFIX = "invoice_"
 
-    mailbox = _require_env("TARGET_MAILBOX")
-    print(f"\nFetching recent Crown messages from {mailbox}...")
-    messages = fetch_crown_messages(token, mailbox, limit=5)
-    print(f"  Found {len(messages)} message(s).\n")
 
-    for i, msg in enumerate(messages, start=1):
-        attachments = msg.get("attachments", [])
-        pdf_attachments = [
-            a for a in attachments
-            if a.get("name", "").lower().endswith(".pdf")
-        ]
-        print(f"  [{i}] {msg.get('receivedDateTime')}")
-        print(f"      subject: {msg.get('subject')}")
-        print(f"      attachments: {len(attachments)} total, {len(pdf_attachments)} PDF")
-        for a in pdf_attachments:
-            size_kb = a.get("size", 0) / 1024
-            print(f"        - {a.get('name')} ({size_kb:.1f} KB)")
+def _is_crown_invoice(msg: dict) -> bool:
+    """True if a message looks like a Crown Plastics invoice."""
+    subject = (msg.get("subject") or "").lower()
+    if not all(marker in subject for marker in CROWN_SUBJECT_MARKERS):
+        return False
+    for att in msg.get("attachments", []):
+        name = (att.get("name") or "").lower()
+        if name.startswith(CROWN_ATTACHMENT_PREFIX) and name.endswith(".pdf"):
+            return True
+    return False
 
-    return 0
 
-def fetch_crown_messages(token: str, mailbox: str, limit: int = 5) -> list[dict]:
-    """Fetch up to `limit` recent messages from Crown.
+def fetch_crown_messages(token: str, mailbox: str, limit: int = 50) -> list[dict]:
+    """Fetch recent Crown invoice messages, newest first.
 
-    Uses $filter to scope to crown@plasticglobes.com and $expand to
-    pull attachments inline (one round trip per message instead of two).
-    Newest first.
+    Pulls recent messages with attachments expanded, then filters
+    client-side via `_is_crown_invoice`.
     """
-    # Graph's $filter on from/emailAddress/address has finicky restrictions
-    # when combined with $orderby and $expand. Simpler: grab recent
-    # messages, filter client-side. For our scale (handful of Crown
-    # messages per week), this is plenty efficient.
     url = (
         f"{GRAPH_BASE}/users/{mailbox}/messages"
         f"?$expand=attachments"
@@ -108,17 +111,125 @@ def fetch_crown_messages(token: str, mailbox: str, limit: int = 5) -> list[dict]
         url, headers={"Authorization": f"Bearer {token}"}, timeout=30,
     )
     response.raise_for_status()
-
     all_messages = response.json().get("value", [])
-
-    # Client-side filter to Crown sender.
-    crown_messages = [
-        m for m in all_messages
-        if m.get("from", {}).get("emailAddress", {}).get("address", "").lower()
-        == "crown@plasticglobes.com"
-    ]
-
+    crown_messages = [m for m in all_messages if _is_crown_invoice(m)]
     return crown_messages[:limit]
-    
+
+
+def _pdf_attachment(msg: dict) -> dict | None:
+    """Return the invoice PDF attachment object for a message, if any."""
+    for att in msg.get("attachments", []):
+        name = (att.get("name") or "").lower()
+        if name.startswith(CROWN_ATTACHMENT_PREFIX) and name.endswith(".pdf"):
+            return att
+    return None
+
+
+def get_pdf_bytes(token: str, mailbox: str, msg: dict, att: dict) -> bytes:
+    """Return the attachment's raw bytes.
+
+    Prefers the inline base64 contentBytes from the $expand fetch; falls
+    back to an explicit per-attachment $value call if it's absent.
+    """
+    content_b64 = att.get("contentBytes")
+    if content_b64:
+        return base64.b64decode(content_b64)
+    url = (
+        f"{GRAPH_BASE}/users/{mailbox}/messages/{msg['id']}"
+        f"/attachments/{att['id']}/$value"
+    )
+    r = requests.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=60)
+    r.raise_for_status()
+    return r.content
+
+
+def get_crown_vendor_id(conn) -> int:
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT vendor_id FROM lpg.vendors WHERE vendor_code = %s",
+        (CROWN_VENDOR_CODE,),
+    )
+    row = cur.fetchone()
+    if row is None:
+        raise RuntimeError(
+            f"Vendor row not found (vendor_code={CROWN_VENDOR_CODE!r})"
+        )
+    return row[0]
+
+
+def main() -> int:
+    print("Acquiring access token...")
+    token = get_access_token()
+
+    mailbox = _require_env("TARGET_MAILBOX")
+    print(f"Fetching Crown invoice messages from {mailbox}...")
+    messages = fetch_crown_messages(token, mailbox)
+    print(f"  {len(messages)} Crown message(s) to process.\n")
+
+    with get_connection() as conn:
+        crown_vendor_id = get_crown_vendor_id(conn)
+
+    counts = {"ingested": 0, "duplicate": 0, "not_invoice": 0,
+              "reconcile_failed": 0, "error": 0}
+
+    for i, msg in enumerate(messages, start=1):
+        subject = msg.get("subject", "")
+        att = _pdf_attachment(msg)
+        if att is None:
+            print(f"  [{i}] no invoice PDF, skipping: {subject}")
+            counts["not_invoice"] += 1
+            continue
+
+        try:
+            pdf_bytes = get_pdf_bytes(token, mailbox, msg, att)
+            parsed = parse_crown_invoice(pdf_bytes)
+        except NotAnInvoiceError as e:
+            print(f"  [{i}] SKIP not-an-invoice: {e}")
+            counts["not_invoice"] += 1
+            continue
+        except InvoiceReconcileError as e:
+            print(f"  [{i}] RECONCILE FAILURE ({att.get('name')}): {e}",
+                  file=sys.stderr)
+            counts["reconcile_failed"] += 1
+            continue
+        except Exception as e:  # noqa: BLE001
+            print(f"  [{i}] ERROR parsing {att.get('name')}: {e}",
+                  file=sys.stderr)
+            counts["error"] += 1
+            continue
+
+        try:
+            with get_connection() as conn:
+                result = write_crown_invoice(
+                    conn,
+                    parsed,
+                    vendor_id=crown_vendor_id,
+                    graph_message_id=msg["id"],
+                    raw_pdf_filename=att.get("name"),
+                )
+        except Exception as e:  # noqa: BLE001
+            print(f"  [{i}] ERROR writing invoice "
+                  f"{parsed.get('invoice_number')}: {e}", file=sys.stderr)
+            counts["error"] += 1
+            continue
+
+        if result.inserted:
+            print(f"  [{i}] ingested invoice {parsed['invoice_number']} "
+                  f"(PO {parsed.get('customer_po_number')}, "
+                  f"{result.line_count} lines)")
+            counts["ingested"] += 1
+        else:
+            print(f"  [{i}] duplicate, skipped: invoice "
+                  f"{parsed['invoice_number']}")
+            counts["duplicate"] += 1
+
+    print("\nSummary:")
+    for k in ("ingested", "duplicate", "not_invoice", "reconcile_failed", "error"):
+        print(f"  {k}: {counts[k]}")
+
+    # Non-zero exit so Cloud Scheduler/monitoring flags runs needing attention.
+    return 1 if (counts["reconcile_failed"] or counts["error"]) else 0
+
+
 if __name__ == "__main__":
     sys.exit(main())
