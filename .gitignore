@@ -26,7 +26,6 @@ cloud_sql_proxy
 *.tfstate
 *.tfstate.*
 .terraform/
-.terraform.lock.hcl
 
 # Logs
 *.log
