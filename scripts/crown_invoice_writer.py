@@ -70,9 +70,13 @@ def write_crown_invoice(
 
     cur = conn.cursor()
 
-    # Header. ON CONFLICT on the graph_message_id unique constraint makes
-    # re-sync a no-op. RETURNING only yields a row when an insert happened,
-    # so a None return == skipped.
+    # Header. Dedup on (vendor_id, vendor_invoice_number) — NOT graph_message_id.
+    # Crown sends two identical emails per invoice (a vendor-side quirk), so the
+    # copies have different message IDs but the same invoice number. The invoice
+    # number is the true business identity, so it's the right idempotency key:
+    # it skips both Crown's second copy and any genuine re-sync. First email to
+    # arrive wins; since the copies are identical, which one is irrelevant.
+    # RETURNING yields a row only on insert, so a None return == skipped.
     cur.execute(
         """
         INSERT INTO lpg.vendor_invoices (
@@ -84,7 +88,7 @@ def write_crown_invoice(
         ) VALUES (
             %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
         )
-        ON CONFLICT (graph_message_id) DO NOTHING
+        ON CONFLICT ON CONSTRAINT uq_vendor_invoice_number DO NOTHING
         RETURNING vendor_invoice_id
         """,
         (
