@@ -1,0 +1,6 @@
+# Crown invoice sync job — its own dependency set.
+# Deliberately NO fastapi/uvicorn: this is a batch job, not a web service.
+# lpg_common (installed separately in the Dockerfile) brings the DB stack.
+msal==1.37.0
+pdfplumber==0.11.8
+requests==2.34.2

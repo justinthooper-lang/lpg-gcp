@@ -45,6 +45,18 @@ def _find(pattern: str, text: str, group: int = 1, flags: int = 0) -> str | None
     m = re.search(pattern, text, flags)
     return m.group(group).strip() if m else None
 
+def _total(label: str, text: str) -> str | None:
+    """Extract a totals-block amount by its label.
+
+    Crown's truck-freight line carries a reference code between the label
+    and the amount (e.g. "Freight (TRUCK): AD366179-4   447.89"), while UPS
+    and the others have nothing. So we anchor on the label, stay on the same
+    line ([^\\n]*?), and capture the LAST money value before end-of-line —
+    which is always the amount, reference code or not.
+    """
+    m = re.search(rf"{label}[^\n]*?({_MONEY})\s*$", text, re.M)
+    return m.group(1).strip() if m else None
+
 
 def parse_crown_invoice(pdf_bytes: bytes) -> dict:
     """Parse Crown invoice PDF bytes into a structured dict.
@@ -74,13 +86,12 @@ def parse_crown_invoice(pdf_bytes: bytes) -> dict:
         "payment_terms":      _find(r"\b(Net \d+ Days?)\b", text),
         "ship_via":           _find(r"Net \d+ Days?\s+\d{1,2}/\d{1,2}/\d{4}\s+(.+?)\s{2,}\d", text),
         "tracking_number":    _find(r"Tracking #:\s*(\d+)", text),
-        "sale_amount":        _money(_find(rf"Sale Amount:\s+({_MONEY})", text)),
-        "freight_truck":      _money(_find(rf"Freight \(TRUCK\):\s+({_MONEY})", text)),
-        "freight_ups":        _money(_find(rf"Freight \(UPS\):\s+({_MONEY})", text)),
-        # Crown labels the grand total "SubTotal" (counterintuitive).
-        "grand_total":        _money(_find(rf"SubTotal:\s+({_MONEY})", text)),
-        "amount_received":    _money(_find(rf"Amount Received:\s+({_MONEY})", text)),
-        "balance_due":        _money(_find(rf"Balance Due:\s+({_MONEY})", text)),
+        "sale_amount":        _money(_total(r"Sale Amount:", text)),
+        "freight_truck":      _money(_total(r"Freight \(TRUCK\):", text)),
+        "freight_ups":        _money(_total(r"Freight \(UPS\):", text)),
+        "grand_total":        _money(_total(r"SubTotal:", text)),
+        "amount_received":    _money(_total(r"Amount Received:", text)),
+        "balance_due":        _money(_total(r"Balance Due:", text)),
     }
 
     # row: L/I  item-no  qty-shipped  qty-bo  UOM  unit-price(4dp)  extended(2dp)

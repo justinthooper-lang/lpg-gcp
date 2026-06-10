@@ -31,7 +31,9 @@ DB_NAME = os.getenv("DB_NAME", "lpg")
 # - On Cloud Run, K_SERVICE is automatically set; we use IAM auth with
 #   the runtime service account.
 # - Locally, we use password auth via PGPASSWORD env var.
-RUNNING_ON_CLOUD_RUN = bool(os.getenv("K_SERVICE"))
+# K_SERVICE is set on Cloud Run *services*; CLOUD_RUN_JOB on Cloud Run
+# *jobs*. Either means we're on Cloud Run and should use IAM database auth.
+RUNNING_ON_CLOUD_RUN = bool(os.getenv("K_SERVICE") or os.getenv("CLOUD_RUN_JOB"))
 
 # Service account email (without ".gserviceaccount.com" — Cloud SQL's
 # IAM auth quirk). For non-default service accounts we'd configure

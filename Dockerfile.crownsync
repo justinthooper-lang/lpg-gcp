@@ -1,0 +1,30 @@
+# syntax=docker/dockerfile:1.6
+# Crown invoice sync job image. Built from repo root to pull in the shared
+# lpg_common package. Runs as a Cloud Run JOB (run-to-completion), triggered
+# daily by Cloud Scheduler. No web server — see ADR-0016 / ADR-0017.
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# Shared package first (changes rarely). Installing it brings the DB stack
+# (pg8000, cloud-sql-connector, google-auth) transitively.
+COPY lpg_common/ ./lpg_common/
+RUN pip install --no-cache-dir ./lpg_common
+
+# Job-specific dependencies (msal, pdfplumber, requests).
+COPY crown-sync/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# The three Crown modules. They import each other as siblings, so they
+# sit together in the working dir.
+COPY scripts/crown_invoice_parser.py \
+     scripts/crown_invoice_writer.py \
+     scripts/sync_crown_invoices.py \
+     ./
+
+# Run the sync once and exit. Non-zero exit (reccile/errors) marks the
+# Cloud Run job execution as failed — the monitoring signal we want.
+ENTRYPOINT ["python", "sync_crown_invoices.py"]

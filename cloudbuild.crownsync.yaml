@@ -1,0 +1,13 @@
+# Cloud Build config for the crown-sync job image.
+# Build context is the repo root so lpg_common/ is reachable.
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'us-west1-docker.pkg.dev/lpg-dev-496820/lpg-images/crown-sync:${_TAG}'
+      - '-f'
+      - 'Dockerfile.crownsync'
+      - '.'
+images:
+  - 'us-west1-docker.pkg.dev/lpg-dev-496820/lpg-images/crown-sync:${_TAG}'
