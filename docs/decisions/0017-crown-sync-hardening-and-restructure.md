@@ -76,3 +76,33 @@ Supersedes these specifics in 0016: sender-based filtering (Decision/workflow st
 - Code: scripts/crown_invoice_parser.py, scripts/crown_invoice_writer.py, scripts/sync_crown_invoices.py, lpg_common/
 - Azure app: client ID c36883bf-a1b7-4e63-8fc1-c965b32d76ce; tenant fa215d01-a503-4496-ae9f-3ab71e89037e
 - Exchange scope group: crown-sync-scope@lamppostglobes.com
+
+---
+
+## Addendum: cloud deploy (2026-06-10)
+
+The two-image split and Cloud Run job from "Future work" are now deployed. Both images build from repo root sharing lpg_common, via Dockerfile.webhook / Dockerfile.crownsync and matching cloudbuild.*.yaml configs. deploy.sh builds and deploys the webhook image to both services (unchanged smoke matrix passing at v0.12.3).
+
+### Infrastructure created (manual gcloud — not yet in Terraform)
+
+- **Cloud Run job** crown-invoice-sync (region us-west1), image crown-sync:v0.12.5. Runs sync_crown_invoices.py to completion; max-retries 1, task-timeout 10m.
+- **Dedicated service account** crown-sync-job@lpg-dev-496820.iam.gserviceaccount.com, least-privilege: secretAccessor on azure-graph-client-secret only, cloudsql.client + cloudsql.instanceUser, run.invoker on the job.
+- **Postgres IAM user** "crown-sync-job@lpg-dev-496820.iam" on instance lpg-dev, granted USAGE + SELECT/INSERT on schema lpg (+ sequences), with ALTER DEFAULT PRIVILEGES so future tables inherit. No UPDATE/DELETE/DDL — invoices are append-only.
+- **Cloud Scheduler job** crown-invoice-sync-daily: cron "0 2 * * *" America/Los_Angeles, POSTs to the job's :run endpoint with an OAuth token as crown-sync-job. Verified end-to-end (a scheduler-triggered execution ran green, RUN BY the SA).
+
+Instance note: lpg-dev is the live instance (the deployed webhook service and the local proxy both target it). lpg-dev-pg is an older unused instance — cleanup deferred.
+
+### Two bugs found during deploy
+
+1. **Cloud Run job auth-mode misdetection (lpg_common/db.py).** db.py keyed "am I on Cloud Run?" off K_SERVICE, which is set on Cloud Run *services* but NOT *jobs* (jobs set CLOUD_RUN_JOB). So the job fell through to password auth and failed demanding PGPASSWORD. Fixed to check `K_SERVICE or CLOUD_RUN_JOB`. Latent bug for any job built on the shared module.
+   - Related: the job's IAM DB username comes from the IAM_DB_USER env var (db.py default is the compute SA). Must be set explicitly on the job to the dedicated SA's Postgres username, or IAM auth fails as the wrong user.
+
+2. **Truck freight with a reference code (crown_invoice_parser.py).** Truck-freight invoices print a reference between label and amount: "Freight (TRUCK): AD366179-4   447.89". The old regex expected the amount immediately after the label and so read 0.00, dropping $447.89 — caught by the reconciliation guard (sale+freight != total), not silently booked. Fixed with a same-line-anchored helper that captures the last money value on the label's line, tolerant of an intervening reference token. Validated on both truck and UPS invoices; invoice 227930 now reconciles (644.40 + 447.89 = 1092.29).
+
+The reconciliation guard paid for itself here: it converted a silent $447.89 cost-data error into a loud, fixable failure.
+
+### Still future work
+
+- **Terraform** the above infrastructure (job, SAs, IAM, scheduler) — currently manual gcloud.
+- **deploy.sh** doesn't yet build/deploy the crown-sync image or job; that's still manual gcloud builds submit + jobs update. Generalize or add deploy-job.sh.
+- Crown direct-to-tenant delivery; secret rotation playbook (carried forward).
