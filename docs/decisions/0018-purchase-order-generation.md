@@ -1,6 +1,6 @@
 # ADR-0018: Purchase order generation (DRAFT — for review)
 
-**Status:** Draft **Date:** 2026-06-10 **Revised:** 2026-06-10 (data verification — explosion & pricing resolved; Q2 fees resolved manual)
+**Status:** Draft **Date:** 2026-06-10 **Revised:** 2026-06-11 (combo emits one PO line with joined SKU \+ summed cost \+ Shift4 description; Q4 PDF library resolved → reportlab). Prior revision 2026-06-10 (data verification; Q2 fees manual).
 
 Draft for review. Captures decisions made so far and surfaces the open questions to resolve before implementation. Not yet accepted. The 2026-06-10 revision folds in a working session that verified the explosion model against live `product_components` / `vendor_skus` / `shift4.order_items` data and closed the largest open question; see **Data verification & decisions** below.
 
@@ -43,8 +43,8 @@ A real example of the current PO output (PO32163) shows the target format:
      
 7. **Explosion model: selective, driven by `product_components`; passthrough is the absence of a row.** *(Resolves the explosion half of the original Q2/Q3 — see Data verification below.)* Unlike the Salesforce version, GCP order line items arrive **un-exploded**: combo SKUs land in `shift4.order_items` as single lines, because GCP has no upstream order-import step that splits them (Salesforce did). PO-gen therefore performs the decomposition itself, at generation time, per order line:  
      
-   - SKU **has rows** in `lpg.product_components` → emit its components (globe \+ neck), priced from `lpg.vendor_skus`.  
-   - SKU **has no rows** → passthrough: the LPG SKU *is* the Crown SKU; emit it verbatim (e.g. `20012-CL-4F → 20012-CL-4F`), priced from its own `vendor_skus` row.
+   - SKU **has rows** in `lpg.product_components` → **one** PO line whose Product ID is the component codes joined with `/` (e.g. `20012-WH-XX/98006-P`, Crown's "converted id" convention) and whose unit cost is the **summed** component cost from `lpg.vendor_skus`. Only the SKU *value* is exploded — the line stays a single line. Quantity is the order quantity; the line's description is Shift4's own order-item description, verbatim.  
+   - SKU **has no rows** → passthrough: the LPG SKU *is* the Crown SKU; emit it verbatim (e.g. `20012-CL-4F → 20012-CL-4F`), priced from its own `vendor_skus` row, with Shift4's order-item description.
 
    
 
@@ -65,7 +65,7 @@ Reading the Salesforce source (`CrownPOGenerator.cls`, `CrownPOController.cls`, 
 
 ### PDF data contract (from CrownPOController)
 
-The PDF template consumes exactly: `poNumber`, `today`, `commentsText`, `brokenCartonFee`, `minimumOrderFee`, ship block (`shipName`, `shipCompany`, `shipStreet`, `shipCityLine`, `shipPhone`), and line items of (`productCode`, `description`, `quantity`, `unitPrice`). That is the full field set the GCP PDF builder must supply. Note that under Decision 7, for combo orders the `productCode`/`unitPrice` lines are now the **Crown component** SKUs and costs (from the explosion), not the LPG combo SKU; passthrough lines are unchanged (LPG SKU \= Crown SKU).
+The PDF template consumes exactly: `poNumber`, `today`, `commentsText`, `brokenCartonFee`, `minimumOrderFee`, ship block (`shipName`, `shipCompany`, `shipStreet`, `shipCityLine`, `shipPhone`), and line items of (`productCode`, `description`, `quantity`, `unitPrice`). That is the full field set the GCP PDF builder must supply. Under Decision 7, a combo order produces **one** line: `productCode` is the joined component SKUs (e.g. `20012-WH-XX/98006-P`), `unitPrice` is the summed component cost, and `description` is Shift4's order-item description; passthrough lines carry the SKU itself, also with the Shift4 description. (The Shift4 description replaces `vendor_skus.description`, which per ADR-0014 holds the price-list *category*, not a product label.)
 
 ## Data verification & decisions (2026-06-10)
 
@@ -101,9 +101,9 @@ A working session verified the explosion model against live data, resolving the 
 
 The Salesforce version stored fees as fields on the Order and the PDF as an attached File; it did not keep a separate PO table. GCP options: (a) minimal — store the generated PDF in GCS and a pointer \+ fee values on the existing order representation; (b) full — a `purchase_orders` \+ `purchase_order_lines` schema (with `is_fee` on lines) for a proper three-way match. **The three-way-match goal argues for (b)**, but (a) is enough to ship generation. Decide based on whether PO/confirmation/invoice matching is in near-term scope.
 
-### Q4 — PDF generation library
+### Q4 — PDF generation library — **RESOLVED (reportlab)**
 
-No PDF *builder* in GCP yet. Need to choose: HTML-template→PDF (e.g. WeasyPrint — closest to the Visualforce model, easy to match the PO32163 layout) vs. programmatic (reportlab). The `Crown_Purchase_Order.page` Visualforce file (not yet provided) is the exact layout reference; the data contract above is already known.
+**Decision: reportlab (Platypus).** The fork was HTML-template→PDF (WeasyPrint, closest to the Visualforce model) vs. programmatic (reportlab). reportlab wins on the deciding factor for an all-Cloud-Run stack: it is **pure-Python with no native system dependencies**, so the image needs no apt packages (WeasyPrint pulls pango/cairo/gdk-pixbuf — image bloat a reviewer questions). A PO is a standard tabular document (header, ship-to, line-items grid, fees, total) that Platypus `Table` handles cleanly, and the Visualforce layout was never provided, so there is no pixel-target that would have favored HTML/CSS. Implemented in `purchase_order_pdf.py` as a pure `render_purchase_order_pdf(po) -> bytes` (no DB, no I/O target); `reportlab` added to `webhook-handler/requirements.txt`. Verified rendering the PO32163 field set end-to-end.
 
 ### Q5 — PDF storage / order linkage
 
@@ -130,7 +130,7 @@ Decision 7's explosion invariant **reverses a load-bearing rule in ADR-0004.** T
 ## Proposed build order (once questions resolved)
 
 1. Schema: `purchase_orders` \+ `purchase_order_lines` (with `is_fee`). No `pack_quantity` on `vendor_skus` (Q2 resolved manual — not needed); explosion uses the already-seeded `product_components`.  
-2. Core logic — a pure, testable module (like the parser/writer split): order line → **`product_components` lookup → explode to components, else passthrough** → price from `vendor_skus` → append fee line(s). Port fee/format details from `CrownPOGenerator.cls` at build time.  
+2. Core logic — a pure, testable module (like the parser/writer split): order line → `product_components` lookup → **one line per order line** (combo \= joined component SKU \+ summed cost; else passthrough) → price from `vendor_skus` → append fee line(s). Description \= Shift4 order-item text. **Built:** `purchase_order_builder.py` (pure) \+ `purchase_order_repository.py` (fetch/persist) \+ `smoke_po.py`, verified live.  
 3. PDF builder reproducing the PO32163 layout (Q5).  
 4. `lpg-admin` endpoints: generate (returns draft \+ PDF), send.  
 5. Azure `Mail.Send` setup per Q1; send endpoint via Graph.  

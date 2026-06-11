@@ -5,10 +5,14 @@ to resolve it, produces an in-memory ``PurchaseOrder`` (header + lines) ready fo
 the repository layer to persist. **No database access happens here** — this module
 is pure and unit-testable, mirroring the ``crown_invoice_parser`` / ``writer`` split.
 
-Explosion rule (ADR-0018 invariant): for each order line item, if its SKU has rows
-in ``lpg.product_components`` it is a *combo* — emit those components, priced from
-``vendor_skus``. Otherwise the SKU is a *passthrough* (the LPG SKU **is** the Crown
-SKU) — emit it verbatim, priced from its own ``vendor_skus`` row.
+Explosion rule (ADR-0018 invariant): each order line item produces exactly **one**
+PO line. If its SKU has rows in ``lpg.product_components`` it is a *combo* — the one
+line carries the component codes joined with '/' as its Product ID (e.g.
+``20012-WH-XX/98006-P``, Crown's "converted id" convention) and the **summed**
+component cost; only the SKU value is exploded, not the line. Otherwise the SKU is a
+*passthrough* (the LPG SKU **is** the Crown SKU) — emitted verbatim, priced from its
+own ``vendor_skus`` row. Either way the line's description is Shift4's own order-item
+description, verbatim.
 
 Pricing (ADR-0018 Decision 8): ``vendor_skus.unit_cost`` is the single source of
 truth. A line can only go on the PO if it has a real cost; ``unit_cost`` is nullable
@@ -33,9 +37,15 @@ from decimal import Decimal
 # --------------------------------------------------------------------------- #
 @dataclass(frozen=True)
 class OrderItem:
-    """One line of the customer's order (from ``shift4.order_items``)."""
+    """One line of the customer's order (from ``shift4.order_items``).
+
+    ``description`` is Shift4's own item description (e.g. "12 inch white acrylic
+    with 6 in neck") — it becomes the PO line's description verbatim, for both
+    combo and passthrough lines.
+    """
     sku: str
     quantity: int
+    description: str | None = None
 
 
 @dataclass(frozen=True)
@@ -129,27 +139,34 @@ def build_purchase_order(
     for item in order_items:
         sku = item.sku
 
-        if sku in bom_map:  # combo -> explode
+        if sku in bom_map:  # combo -> ONE line, SKU value exploded + cost summed
             components = sorted(bom_map[sku], key=lambda c: c.sort_order)
             # A kit is all-or-nothing: if any component can't be priced, the
-            # whole combo is unpriceable (don't emit a half-priced kit).
+            # whole combo is unpriceable (don't emit a mis-priced line).
             if any(c.unit_cost is None for c in components):
                 unpriced.append(sku)
                 continue
-            for comp in components:
-                sort += 1
-                lines.append(
-                    POLine(
-                        is_fee=False,
-                        sort_order=sort,
-                        vendor_sku_id=comp.vendor_sku_id,
-                        vendor_sku_code=comp.vendor_sku_code,
-                        description=comp.description,
-                        quantity=item.quantity * comp.quantity_per,
-                        unit_cost=comp.unit_cost,
-                    )
+            sort += 1
+            lines.append(
+                POLine(
+                    is_fee=False,
+                    sort_order=sort,
+                    # Composite: not a single vendor SKU, so no vendor_sku_id.
+                    vendor_sku_id=None,
+                    # Component codes joined in sort_order, e.g.
+                    # "20012-WH-XX/98006-P" — Crown's "converted id" convention.
+                    vendor_sku_code="/".join(c.vendor_sku_code for c in components),
+                    # Description is Shift4's item description, verbatim.
+                    description=item.description,
+                    quantity=item.quantity,
+                    # Summed component cost per unit (each component qty_per).
+                    unit_cost=sum(
+                        (c.unit_cost * c.quantity_per for c in components),
+                        Decimal("0"),
+                    ),
                 )
-        else:  # passthrough
+            )
+        else:  # passthrough -> one line, priced from its own vendor SKU
             comp = passthrough_prices.get(sku)
             if comp is None or comp.unit_cost is None:
                 unpriced.append(sku)
@@ -161,7 +178,7 @@ def build_purchase_order(
                     sort_order=sort,
                     vendor_sku_id=comp.vendor_sku_id,
                     vendor_sku_code=comp.vendor_sku_code,
-                    description=comp.description,
+                    description=item.description,
                     quantity=item.quantity * comp.quantity_per,
                     unit_cost=comp.unit_cost,
                 )

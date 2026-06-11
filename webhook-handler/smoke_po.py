@@ -20,6 +20,7 @@ from decimal import Decimal
 
 from lpg_common.db import get_connection
 from purchase_order_builder import Fee, build_purchase_order
+from purchase_order_pdf import render_purchase_order_pdf
 from purchase_order_repository import (
     fetch_order_context,
     write_purchase_order,
@@ -54,6 +55,8 @@ def main() -> int:
                     help="Persist the PO (default is a dry run that rolls back).")
     ap.add_argument("--order-fee", type=Decimal, default=None)
     ap.add_argument("--broken-carton-fee", type=Decimal, default=None)
+    ap.add_argument("--pdf", metavar="PATH", default=None,
+                    help="Also render the PO to a PDF at PATH (works in dry run too).")
     args = ap.parse_args()
 
     fees: list[Fee] = []
@@ -79,6 +82,11 @@ def main() -> int:
         mode = "WRITE" if args.write else "DRY RUN"
         print(f"=== PO generation ({mode}) for order {args.shift4_order_id} ===")
         _print_po(po)
+
+        if args.pdf:
+            with open(args.pdf, "wb") as fh:
+                fh.write(render_purchase_order_pdf(po))
+            print(f"\n  PDF written: {args.pdf}")
 
         if args.write:
             result = write_purchase_order(conn, po)

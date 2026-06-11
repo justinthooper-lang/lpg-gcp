@@ -41,24 +41,27 @@ PASS = {
 }
 
 
-def test_combo_explodes_and_multiplies_qty():
+def test_combo_collapses_to_one_line_with_joined_sku_and_summed_cost():
     po = build_purchase_order(
         po_number="PO32163",
         shift4_order_id=32163,
         vendor_id=1,
-        order_items=[OrderItem("20012-WH-6F", 2)],
+        order_items=[OrderItem("20012-WH-6F", 2,
+                               description="12 inch white acrylic with 6 in neck")],
         bom_map=BOM,
         passthrough_prices=PASS,
         ship_to=SHIP,
     )
     product_lines = [l for l in po.lines if not l.is_fee]
-    assert len(product_lines) == 2, product_lines
-    assert product_lines[0].vendor_sku_code == "20012-WH-XX"
-    assert product_lines[0].quantity == 2          # 2 ordered x 1 per
-    assert product_lines[1].vendor_sku_code == "98006-P"
-    assert product_lines[1].quantity == 2
+    assert len(product_lines) == 1, product_lines          # ONE line, not two
+    line = product_lines[0]
+    assert line.vendor_sku_code == "20012-WH-XX/98006-P"     # joined in sort_order
+    assert line.vendor_sku_id is None                        # composite, no single id
+    assert line.quantity == 2                                # order qty, not multiplied
+    assert line.unit_cost == Decimal("21.40")                # 3.00 + 18.40 summed
+    assert line.description == "12 inch white acrylic with 6 in neck"  # Shift4's text
     assert po.unpriced_skus == []
-    print("ok: combo explodes, qty multiplied")
+    print("ok: combo -> one line, joined SKU, summed cost, Shift4 description")
 
 
 def test_passthrough_emits_self():
@@ -66,7 +69,7 @@ def test_passthrough_emits_self():
         po_number="PO32164",
         shift4_order_id=32164,
         vendor_id=1,
-        order_items=[OrderItem("20012-CL-4F", 3)],
+        order_items=[OrderItem("20012-CL-4F", 3, description="12 inch clear 4 in neck")],
         bom_map=BOM,
         passthrough_prices=PASS,
         ship_to=SHIP,
@@ -76,7 +79,8 @@ def test_passthrough_emits_self():
     assert product_lines[0].vendor_sku_code == "20012-CL-4F"
     assert product_lines[0].quantity == 3
     assert product_lines[0].unit_cost == Decimal("12.40")
-    print("ok: passthrough emits itself")
+    assert product_lines[0].description == "12 inch clear 4 in neck"  # Shift4's text
+    print("ok: passthrough emits itself with Shift4 description")
 
 
 def test_fees_appended_as_fee_lines():
@@ -142,12 +146,12 @@ def test_sort_order_is_monotonic_across_mixed_lines():
         fees=[Fee("Order Fee", Decimal("15.00"))],
     )
     orders = [l.sort_order for l in po.lines]
-    assert orders == [1, 2, 3, 4], orders       # 2 combo parts + 1 passthrough + 1 fee
+    assert orders == [1, 2, 3], orders       # 1 combo line + 1 passthrough + 1 fee
     print("ok: sort_order monotonic across product + fee lines")
 
 
 if __name__ == "__main__":
-    test_combo_explodes_and_multiplies_qty()
+    test_combo_collapses_to_one_line_with_joined_sku_and_summed_cost()
     test_passthrough_emits_self()
     test_fees_appended_as_fee_lines()
     test_unknown_passthrough_is_flagged_not_emitted()

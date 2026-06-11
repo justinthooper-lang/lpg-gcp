@@ -118,14 +118,17 @@ def fetch_order_context(conn, shift4_order_id: int) -> OrderContext:
 
     cur.execute(
         """
-        SELECT sku, quantity
+        SELECT sku, quantity, description
         FROM shift4.order_items
         WHERE shift4_order_id = %s
         ORDER BY id
         """,
         (shift4_order_id,),
     )
-    order_items = [OrderItem(sku=r[0], quantity=r[1]) for r in cur.fetchall()]
+    order_items = [
+        OrderItem(sku=r[0], quantity=r[1], description=r[2])
+        for r in cur.fetchall()
+    ]
     skus = list({it.sku for it in order_items})
 
     # BOM map: only combo SKUs (the exception list) come back with rows.
