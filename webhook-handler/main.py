@@ -28,6 +28,13 @@ from lpg_common.db import get_connection
 from ingest import ingest_order
 from logging_config import configure_logging
 from shift4_models import ORDER_STATUS_MAP, Shift4OrderPayload
+from decimal import Decimal
+from purchase_order_builder import Fee
+from purchase_order_repository import (
+    PurchaseOrderError,
+    generate_purchase_order,
+    purchase_order_to_dict,
+)
 
 import json
 
@@ -614,3 +621,63 @@ if is_admin_service() or _K_SERVICE is None:
 async def shift4_order_created_probe():
     """Respond 200 to Shift4's pre-POST GET probe."""
     return {"status": "ready", "method": "GET", "expects": "POST"}
+
+
+@app.post("/orders/{shift4_order_id}/purchase-order")
+async def generate_order_purchase_order(shift4_order_id: int, request: Request):
+    """Generate (or regenerate) a draft Crown PO for an order. **lpg-admin only.**
+
+    This is a mutating, admin-only operation. It is IAM-protected by Cloud Run on
+    the lpg-admin service; on the public webhook-handler service it returns 404 so
+    PO generation is never exposed publicly.
+
+    Optional JSON body carries manual fees (ADR-0018 Q2 — fees are manual):
+        {"order_fee": "15.00", "broken_carton_fee": "15.00"}
+
+    Returns the draft PO as JSON. Regeneration updates the PO in place and resets
+    its status to draft. Responds 404 if the order doesn't exist, 422 on a bad
+    body, 500 on a database error.
+    """
+    if not is_admin_service():
+        # Not reachable on the public service.
+        return JSONResponse(status_code=404, content={"error": "not found"})
+
+    # Parse optional manual fees from the body.
+    fees: list[Fee] = []
+    raw = await request.body()
+    if raw:
+        try:
+            body = json.loads(raw)
+            for key, label in (("order_fee", "Order Fee"),
+                               ("broken_carton_fee", "Broken Carton Fee")):
+                value = body.get(key)
+                if value is not None:
+                    fees.append(Fee(label, Decimal(str(value))))
+        except (json.JSONDecodeError, ArithmeticError, ValueError, AttributeError) as exc:
+            return JSONResponse(
+                status_code=422,
+                content={"error": f"invalid request body: {exc}"},
+            )
+
+    structlog.contextvars.bind_contextvars(shift4_order_id=shift4_order_id)
+    try:
+        with get_connection() as conn:
+            po, result = generate_purchase_order(conn, shift4_order_id, fees=fees)
+            # get_connection commits on clean exit.
+    except PurchaseOrderError as exc:
+        # Order/vendor not found, etc. — caller error, and the transaction was
+        # rolled back by get_connection when the exception propagated.
+        log.warning("po_generate_not_possible", error=str(exc))
+        return JSONResponse(status_code=404, content={"error": str(exc)})
+    except Exception as exc:
+        log.error("po_generate_db_error", error=str(exc), exc_info=True)
+        return JSONResponse(status_code=500, content={"error": "database error"})
+
+    log.info(
+        "po_generated",
+        po_number=po.po_number,
+        regenerated=result.regenerated,
+        lines=result.line_count,
+        unpriced=len(result.unpriced_skus),
+    )
+    return purchase_order_to_dict(po, result)

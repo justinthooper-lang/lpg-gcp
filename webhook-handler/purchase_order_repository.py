@@ -299,3 +299,46 @@ def generate_purchase_order(
     )
     result = write_purchase_order(conn, po)
     return po, result
+
+
+# --------------------------------------------------------------------------- #
+# Serialization (API response shape)
+# --------------------------------------------------------------------------- #
+def purchase_order_to_dict(
+    po: PurchaseOrder,
+    result: PurchaseOrderWriteResult,
+) -> dict:
+    """Serialize a built PO + write result into a JSON-safe dict for the API.
+
+    Decimals are rendered as strings to avoid float rounding over the wire.
+    """
+    return {
+        "po_number": po.po_number,
+        "purchase_order_id": result.purchase_order_id,
+        "shift4_order_id": po.shift4_order_id,
+        "vendor_id": po.vendor_id,
+        "status": "draft",
+        "regenerated": result.regenerated,
+        "ship_to": {
+            "name": po.ship_to.name,
+            "company": po.ship_to.company,
+            "street": po.ship_to.street,
+            "city_line": po.ship_to.city_line,
+            "phone": po.ship_to.phone,
+        },
+        "comments": po.comments,
+        "lines": [
+            {
+                "sort_order": ln.sort_order,
+                "is_fee": ln.is_fee,
+                "vendor_sku_code": ln.vendor_sku_code,
+                "description": ln.description,
+                "quantity": ln.quantity,
+                "unit_cost": str(ln.unit_cost) if ln.unit_cost is not None else None,
+                "amount": str(ln.amount) if ln.amount is not None else None,
+            }
+            for ln in po.lines
+        ],
+        "line_count": result.line_count,
+        "unpriced_skus": list(result.unpriced_skus),
+    }
