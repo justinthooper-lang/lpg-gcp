@@ -13,3 +13,9 @@ variable "region" {
   type        = string
   default     = "us-west1"
 }
+
+variable "cloud_run_service_account" {
+  description = "Runtime service account for the Cloud Run services (writes/reads PO PDFs)."
+  type        = string
+  default     = "388123220900-compute@developer.gserviceaccount.com"
+}
