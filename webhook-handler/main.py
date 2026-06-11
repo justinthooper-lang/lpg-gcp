@@ -31,10 +31,14 @@ from shift4_models import ORDER_STATUS_MAP, Shift4OrderPayload
 from decimal import Decimal
 from purchase_order_builder import Fee
 from purchase_order_pdf import render_purchase_order_pdf
+from graph_mail import GraphSendError, send_purchase_order_email
 from purchase_order_repository import (
     PurchaseOrderError,
     generate_purchase_order,
+    get_purchase_order_status,
+    get_vendor_po_email,
     load_purchase_order,
+    mark_purchase_order_sent,
     purchase_order_to_dict,
 )
 
@@ -714,3 +718,73 @@ async def get_purchase_order_pdf(po_number: str):
         media_type="application/pdf",
         headers={"Content-Disposition": f'inline; filename="{po_number}.pdf"'},
     )
+
+
+@app.post("/purchase-orders/{po_number}/send")
+async def send_purchase_order(po_number: str, request: Request):
+    """Email a stored PO's PDF to the vendor and mark it sent. **lpg-admin only.**
+
+    IAM-protected on lpg-admin; 404 on the public service. Guards against accidental
+    double-send: if the PO is already 'sent', returns 409 unless ?force=true.
+
+    Responds 404 if the PO doesn't exist, 422 if the vendor has no po_email, 502 if
+    the Graph send fails, 500 on a database error.
+    """
+    if not is_admin_service():
+        return JSONResponse(status_code=404, content={"error": "not found"})
+
+    force = request.query_params.get("force", "").lower() in ("1", "true", "yes")
+
+    try:
+        with get_connection() as conn:
+            po = load_purchase_order(conn, po_number)  # PurchaseOrderError -> 404
+
+            if get_purchase_order_status(conn, po_number) == "sent" and not force:
+                return JSONResponse(
+                    status_code=409,
+                    content={
+                        "error": f"PO {po_number} already sent; pass ?force=true to resend"
+                    },
+                )
+
+            recipient = get_vendor_po_email(conn, po.vendor_id)
+            if not recipient:
+                return JSONResponse(
+                    status_code=422,
+                    content={
+                        "error": f"vendor {po.vendor_id} has no po_email; cannot send"
+                    },
+                )
+
+            pdf_bytes = render_purchase_order_pdf(po)
+
+            try:
+                mailbox = send_purchase_order_email(
+                    recipient=recipient,
+                    po_number=po_number,
+                    pdf_bytes=pdf_bytes,
+                )
+            except GraphSendError as exc:
+                # Nothing persisted yet; surface the send failure to the caller.
+                log.error("po_send_graph_error", po_number=po_number, error=str(exc))
+                return JSONResponse(
+                    status_code=502,
+                    content={"error": f"send failed: {exc}"},
+                )
+
+            mark_purchase_order_sent(conn, po_number)
+            # get_connection commits on clean exit.
+    except PurchaseOrderError as exc:
+        log.warning("po_send_not_found", po_number=po_number, error=str(exc))
+        return JSONResponse(status_code=404, content={"error": str(exc)})
+    except Exception as exc:
+        log.error("po_send_db_error", error=str(exc), exc_info=True)
+        return JSONResponse(status_code=500, content={"error": "database error"})
+
+    log.info("po_sent", po_number=po_number, recipient=recipient, mailbox=mailbox)
+    return {
+        "sent": True,
+        "po_number": po_number,
+        "recipient": recipient,
+        "mailbox": mailbox,
+    }

@@ -372,6 +372,45 @@ def load_purchase_order(conn, po_number: str) -> PurchaseOrder:
 
 
 # --------------------------------------------------------------------------- #
+# Send-flow helpers
+# --------------------------------------------------------------------------- #
+def get_vendor_po_email(conn, vendor_id: int) -> str | None:
+    """The email POs are sent to for this vendor (lpg.vendors.po_email)."""
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT po_email FROM lpg.vendors WHERE vendor_id = %s",
+        (vendor_id,),
+    )
+    row = cur.fetchone()
+    return row[0] if row else None
+
+
+def get_purchase_order_status(conn, po_number: str) -> str | None:
+    """Current status of a PO ('draft'/'sent'), or None if it doesn't exist."""
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT status FROM lpg.purchase_orders WHERE po_number = %s",
+        (po_number,),
+    )
+    row = cur.fetchone()
+    return row[0] if row else None
+
+
+def mark_purchase_order_sent(conn, po_number: str) -> None:
+    """Mark a PO as sent and stamp sent_at = now()."""
+    cur = conn.cursor()
+    cur.execute(
+        """
+        UPDATE lpg.purchase_orders
+        SET status = 'sent'::lpg.purchase_order_status,
+            sent_at = now()
+        WHERE po_number = %s
+        """,
+        (po_number,),
+    )
+
+
+# --------------------------------------------------------------------------- #
 # Serialization (API response shape)
 # --------------------------------------------------------------------------- #
 def purchase_order_to_dict(
