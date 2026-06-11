@@ -32,6 +32,7 @@ from decimal import Decimal
 from purchase_order_builder import Fee
 from purchase_order_pdf import render_purchase_order_pdf
 from graph_mail import GraphSendError, send_purchase_order_email
+from po_composer import PO_COMPOSER_TEMPLATE
 from purchase_order_repository import (
     PurchaseOrderError,
     generate_purchase_order,
@@ -534,6 +535,8 @@ async def get_order_html(order_id: int, request: Request):
     b = o["billing"]
     t = o["totals"]
 
+    composer_html = PO_COMPOSER_TEMPLATE.replace("__ORDER_ID__", str(order_id))
+
     html = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -595,6 +598,8 @@ async def get_order_html(order_id: int, request: Request):
     </table>
 
     {f'<h2>Comments</h2><p>{o["comments"]}</p>' if o['comments'] else ''}
+
+    {composer_html}
 </body>
 </html>"""
 
