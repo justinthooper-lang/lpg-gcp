@@ -20,7 +20,7 @@ import uuid
 
 import structlog
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from pg8000.exceptions import DatabaseError, InterfaceError
 from pydantic import ValidationError
 from auth import verify_token, is_authorized_read, is_admin_service
@@ -30,9 +30,11 @@ from logging_config import configure_logging
 from shift4_models import ORDER_STATUS_MAP, Shift4OrderPayload
 from decimal import Decimal
 from purchase_order_builder import Fee
+from purchase_order_pdf import render_purchase_order_pdf
 from purchase_order_repository import (
     PurchaseOrderError,
     generate_purchase_order,
+    load_purchase_order,
     purchase_order_to_dict,
 )
 
@@ -681,3 +683,34 @@ async def generate_order_purchase_order(shift4_order_id: int, request: Request):
         unpriced=len(result.unpriced_skus),
     )
     return purchase_order_to_dict(po, result)
+
+
+@app.get("/purchase-orders/{po_number}/pdf")
+async def get_purchase_order_pdf(po_number: str):
+    """Render a stored draft PO to a PDF. **lpg-admin only.**
+
+    IAM-protected by Cloud Run on lpg-admin; returns 404 on the public
+    webhook-handler service. Loads the persisted PO (header + lines) and renders
+    it with the reportlab builder. Responds 404 if the PO doesn't exist, 500 on
+    a database error.
+    """
+    if not is_admin_service():
+        return JSONResponse(status_code=404, content={"error": "not found"})
+
+    try:
+        with get_connection() as conn:
+            po = load_purchase_order(conn, po_number)
+    except PurchaseOrderError as exc:
+        log.warning("po_pdf_not_found", po_number=po_number, error=str(exc))
+        return JSONResponse(status_code=404, content={"error": str(exc)})
+    except Exception as exc:
+        log.error("po_pdf_db_error", error=str(exc), exc_info=True)
+        return JSONResponse(status_code=500, content={"error": "database error"})
+
+    pdf_bytes = render_purchase_order_pdf(po)
+    log.info("po_pdf_rendered", po_number=po_number, bytes=len(pdf_bytes))
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{po_number}.pdf"'},
+    )

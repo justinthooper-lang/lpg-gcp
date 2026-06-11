@@ -26,6 +26,7 @@ from purchase_order_builder import (
     Component,
     Fee,
     OrderItem,
+    POLine,
     PurchaseOrder,
     ShipTo,
     build_purchase_order,
@@ -299,6 +300,75 @@ def generate_purchase_order(
     )
     result = write_purchase_order(conn, po)
     return po, result
+
+
+# --------------------------------------------------------------------------- #
+# Load (reconstruct a stored PO for rendering)
+# --------------------------------------------------------------------------- #
+def load_purchase_order(conn, po_number: str) -> PurchaseOrder:
+    """Reconstruct a stored ``PurchaseOrder`` (header + lines) from the DB.
+
+    Used to render a PDF of an already-generated PO without re-running the
+    explosion. ``unpriced_skus`` is a generation-time artifact (not persisted),
+    so it comes back empty — a stored PO only ever holds priced lines.
+    """
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT purchase_order_id, po_number, shift4_order_id, vendor_id,
+               ship_name, ship_company, ship_street, ship_city_line, ship_phone,
+               comments
+        FROM lpg.purchase_orders
+        WHERE po_number = %s
+        """,
+        (po_number,),
+    )
+    row = cur.fetchone()
+    if row is None:
+        raise PurchaseOrderError(f"Purchase order {po_number} not found")
+    (purchase_order_id, po_num, shift4_order_id, vendor_id,
+     ship_name, ship_company, ship_street, ship_city_line, ship_phone,
+     comments) = row
+
+    cur.execute(
+        """
+        SELECT is_fee, sort_order, vendor_sku_id, vendor_sku_code,
+               description, quantity, unit_cost, amount
+        FROM lpg.purchase_order_lines
+        WHERE purchase_order_id = %s
+        ORDER BY sort_order
+        """,
+        (purchase_order_id,),
+    )
+    lines = [
+        POLine(
+            is_fee=r[0],
+            sort_order=r[1],
+            vendor_sku_id=r[2],
+            vendor_sku_code=r[3],
+            description=r[4],
+            quantity=r[5],
+            unit_cost=r[6],
+            amount=r[7],
+        )
+        for r in cur.fetchall()
+    ]
+
+    return PurchaseOrder(
+        po_number=po_num,
+        shift4_order_id=shift4_order_id,
+        vendor_id=vendor_id,
+        ship_to=ShipTo(
+            name=ship_name or "",
+            company=ship_company,
+            street=ship_street,
+            city_line=ship_city_line,
+            phone=ship_phone,
+        ),
+        comments=comments,
+        lines=lines,
+        unpriced_skus=[],
+    )
 
 
 # --------------------------------------------------------------------------- #
