@@ -32,6 +32,7 @@ from decimal import Decimal
 from purchase_order_builder import Fee
 from purchase_order_pdf import render_purchase_order_pdf
 from graph_mail import GraphSendError, send_purchase_order_email
+from gcs_storage import GcsStorageError, upload_po_pdf
 from po_composer import PO_COMPOSER_TEMPLATE
 from purchase_order_repository import (
     PurchaseOrderError,
@@ -777,7 +778,16 @@ async def send_purchase_order(po_number: str, request: Request):
                     content={"error": f"send failed: {exc}"},
                 )
 
-            mark_purchase_order_sent(conn, po_number)
+            # Archive the exact bytes that were emailed (best-effort): a storage
+            # failure must never unwind a real send, so we log and proceed. The
+            # email already went out — that is the source of truth for "sent".
+            pdf_uri = None
+            try:
+                pdf_uri = upload_po_pdf(po_number, pdf_bytes)
+            except GcsStorageError as exc:
+                log.warning("po_archive_failed", po_number=po_number, error=str(exc))
+
+            mark_purchase_order_sent(conn, po_number, pdf_uri=pdf_uri)
             # get_connection commits on clean exit.
     except PurchaseOrderError as exc:
         log.warning("po_send_not_found", po_number=po_number, error=str(exc))
@@ -786,10 +796,17 @@ async def send_purchase_order(po_number: str, request: Request):
         log.error("po_send_db_error", error=str(exc), exc_info=True)
         return JSONResponse(status_code=500, content={"error": "database error"})
 
-    log.info("po_sent", po_number=po_number, recipient=recipient, mailbox=mailbox)
+    log.info(
+        "po_sent",
+        po_number=po_number,
+        recipient=recipient,
+        mailbox=mailbox,
+        archived=bool(pdf_uri),
+    )
     return {
         "sent": True,
         "po_number": po_number,
         "recipient": recipient,
         "mailbox": mailbox,
+        "archived_pdf": pdf_uri,
     }

@@ -396,17 +396,23 @@ def get_purchase_order_status(conn, po_number: str) -> str | None:
     return row[0] if row else None
 
 
-def mark_purchase_order_sent(conn, po_number: str) -> None:
-    """Mark a PO as sent and stamp sent_at = now()."""
+def mark_purchase_order_sent(conn, po_number: str, *, pdf_uri: str | None = None) -> None:
+    """Mark a PO as sent and stamp sent_at = now().
+
+    If ``pdf_uri`` is given, record it as the archived sent-PDF location. A None
+    uri (archival failed/skipped) leaves any existing value intact via COALESCE,
+    so a storage hiccup never erases a prior archive reference.
+    """
     cur = conn.cursor()
     cur.execute(
         """
         UPDATE lpg.purchase_orders
         SET status = 'sent'::lpg.purchase_order_status,
-            sent_at = now()
+            sent_at = now(),
+            pdf_gcs_uri = COALESCE(%s, pdf_gcs_uri)
         WHERE po_number = %s
         """,
-        (po_number,),
+        (pdf_uri, po_number),
     )
 
 
