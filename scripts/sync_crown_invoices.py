@@ -16,7 +16,15 @@ Required env vars:
     AZURE_CLIENT_SECRET
     TARGET_MAILBOX        (e.g., customerservice@lamppostglobes.com)
 
-See ADR-0016 for design.
+Optional env vars:
+    CROWN_INVOICE_FOLDER  display name of an Inbox subfolder (e.g. "Crown
+                          Invoices") that an Exchange rule routes Crown invoices
+                          into. When set, the sync reads only that folder, so the
+                          $top window holds invoices alone — removing the risk that
+                          unrelated mail crowds real invoices out of the window.
+                          When unset, the sync reads the whole mailbox (legacy).
+
+See ADR-0016 / ADR-0017 for design.
 """
 
 from __future__ import annotations
@@ -93,14 +101,53 @@ def _is_crown_invoice(msg: dict) -> bool:
     return False
 
 
-def fetch_crown_messages(token: str, mailbox: str, limit: int = 50) -> list[dict]:
-    """Fetch recent Crown invoice messages, newest first.
+def resolve_invoice_folder_id(token: str, mailbox: str, folder_name: str) -> str:
+    """Resolve a mail-folder id by display name, searching under Inbox.
 
-    Pulls recent messages with attachments expanded, then filters
-    client-side via `_is_crown_invoice`.
+    The invoice subfolder is created as a child of Inbox and an Exchange rule
+    moves Crown invoices into it. Returns the folder id; raises if not found, so
+    a misconfigured CROWN_INVOICE_FOLDER fails loudly rather than silently reading
+    an empty (or wrong) folder. `folder_name` is operator-supplied (trusted env).
     """
     url = (
-        f"{GRAPH_BASE}/users/{mailbox}/messages"
+        f"{GRAPH_BASE}/users/{mailbox}/mailFolders/inbox/childFolders"
+        f"?$filter=displayName eq '{folder_name}'"
+        f"&$select=id,displayName"
+    )
+    resp = requests.get(
+        url, headers={"Authorization": f"Bearer {token}"}, timeout=30,
+    )
+    resp.raise_for_status()
+    for folder in resp.json().get("value", []):
+        if folder.get("displayName") == folder_name:
+            return folder["id"]
+    raise RuntimeError(
+        f"Mail folder {folder_name!r} not found under Inbox in {mailbox}. "
+        f"Create the folder (and its inbox rule) before setting CROWN_INVOICE_FOLDER."
+    )
+
+
+def fetch_crown_messages(
+    token: str,
+    mailbox: str,
+    *,
+    folder_id: str | None = None,
+    limit: int = 50,
+) -> list[dict]:
+    """Fetch recent Crown invoice messages, newest first.
+
+    With `folder_id`, reads only that folder's messages — so the $top window
+    holds invoices alone. Without it, reads across the whole mailbox (legacy).
+    Either way, pulls recent messages with attachments expanded, then filters
+    client-side via `_is_crown_invoice`.
+    """
+    base = (
+        f"{GRAPH_BASE}/users/{mailbox}/mailFolders/{folder_id}/messages"
+        if folder_id
+        else f"{GRAPH_BASE}/users/{mailbox}/messages"
+    )
+    url = (
+        f"{base}"
         f"?$expand=attachments"
         f"&$orderby=receivedDateTime desc"
         f"&$top=50"
@@ -161,8 +208,17 @@ def main() -> int:
     token = get_access_token()
 
     mailbox = _require_env("TARGET_MAILBOX")
-    print(f"Fetching Crown invoice messages from {mailbox}...")
-    messages = fetch_crown_messages(token, mailbox)
+    folder_name = os.getenv("CROWN_INVOICE_FOLDER")
+    if folder_name:
+        folder_id = resolve_invoice_folder_id(token, mailbox, folder_name)
+        print(
+            f"Fetching Crown invoice messages from {mailbox} / "
+            f"folder {folder_name!r}..."
+        )
+        messages = fetch_crown_messages(token, mailbox, folder_id=folder_id)
+    else:
+        print(f"Fetching Crown invoice messages from {mailbox} (whole mailbox)...")
+        messages = fetch_crown_messages(token, mailbox)
     print(f"  {len(messages)} Crown message(s) to process.\n")
 
     with get_connection() as conn:
