@@ -1,8 +1,8 @@
-# ADR-0018: Purchase order generation (DRAFT — for review)
+# ADR-0018: Purchase order generation
 
-**Status:** Draft **Date:** 2026-06-10 **Revised:** 2026-06-11 (combo emits one PO line with joined SKU \+ summed cost \+ Shift4 description; Q4 PDF library resolved → reportlab). Prior revision 2026-06-10 (data verification; Q2 fees manual).
+**Status:** Accepted **Date:** 2026-06-10 **Revised:** 2026-06-11 (implemented end-to-end and prod-verified: Q1 → separate send-only app; Q3 → full purchase_orders schema; build steps 1–5 live on v0.14.0, a real PO emailed via Graph Mail.Send and confirmed received. Q5 GCS storage deferred — PDFs render on demand. Earlier same-day: combo emits one PO line with joined SKU \+ summed cost \+ Shift4 description; Q4 PDF library resolved → reportlab). Prior revision 2026-06-10 (data verification; Q2 fees manual).
 
-Draft for review. Captures decisions made so far and surfaces the open questions to resolve before implementation. Not yet accepted. The 2026-06-10 revision folds in a working session that verified the explosion model against live `product_components` / `vendor_skus` / `shift4.order_items` data and closed the largest open question; see **Data verification & decisions** below.
+Accepted and implemented. The core generator, persistence, PDF rendering, generate/serve/send endpoints, and Graph send are built and verified in production (see **Implementation status** at the end). The 2026-06-10 revision folds in a working session that verified the explosion model against live `product_components` / `vendor_skus` / `shift4.order_items` data and closed the largest open question; see **Data verification & decisions** below.
 
 ## Context
 
@@ -87,9 +87,18 @@ A working session verified the explosion model against live data, resolving the 
 
 ## Open questions (resolve before build)
 
-### Q1 — `Mail.Send`: extend the existing Azure app, or a separate app?
+### Q1 — `Mail.Send`: extend the existing Azure app, or a separate app? — **RESOLVED (separate send-only app)**
 
-(Unchanged — the send step was always decoupled from generation; it is not in the Apex source.) Today the Azure app has `Mail.Read` only, scoped to one mailbox (ADR-0017). Sending needs `Mail.Send` (write). Options: (a) add `Mail.Send` to the existing app (simpler, but the read-only sync app gains send power), or (b) a separate "PO send" app (cleaner least-privilege, own Application Access Policy). *Leaning (b).* Scope send to a single mailbox either way.
+**Decision: a separate send-only Azure app (option b).** Adding `Mail.Send` to the read app would undo the least-privilege boundary ADR-0017 established — one credential able to both read and send mail is precisely what a client security review rejects. Instead, a distinct app ("Lamp Post Globes — Crown PO Send", client `3e9eda8a-…`) holds `Mail.Send` Application permission *only*; the read app keeps `Mail.Read` *only*. Both share the tenant (`fa215d01-…`).
+
+**As built and verified in production:**
+- New app registration, single-tenant, no redirect URI; `Mail.Send` Application permission with admin consent (no `Mail.Read`).
+- `New-ApplicationAccessPolicy -AccessRight RestrictAccess` scoping the app to the single mailbox `customerservice@lamppostglobes.com` (direct-to-mailbox scope, no scope group — simpler than ADR-0017's group, equally correct for one mailbox). Same multi-hour propagation as ADR-0017; `Test-ApplicationAccessPolicy` again reports `Granted` instantly and is not trusted.
+- Client secret stored in Secret Manager as `azure-graph-send-secret` (Value, not Secret ID — verified 40 chars per the ADR-0017 trap), readable by the `lpg-admin` compute SA via a secret-scoped `secretAccessor` binding.
+- `lpg-admin` env: `AZURE_TENANT_ID`, `AZURE_SEND_CLIENT_ID`, `CROWN_PO_MAILBOX` (plain) + `AZURE_SEND_CLIENT_SECRET` (secretKeyRef). Send client `graph_mail.py` mirrors crown-sync's MSAL client-credentials pattern with the send app's own creds.
+- Send endpoint `POST /purchase-orders/{po_number}/send` (lpg-admin only): loads the stored PO, renders the PDF, sends via Graph, marks `status=sent` + `sent_at`. **Never auto-sends** — explicit call only. Double-send guard returns `409` unless `?force=true`; `422` if the vendor has no `po_email`; `502` (and PO stays `draft`) if Graph fails. Recipient sourced from `lpg.vendors.po_email`.
+
+A real PO (`PO32159`) was generated, rendered, and emailed end-to-end through the live service, landing in a real inbox with the PDF attached; the `409` double-send guard was confirmed live.
 
 ### Q2 — Fee handling: computed vs. manually-set values — **RESOLVED (manual)**
 
@@ -97,9 +106,9 @@ A working session verified the explosion model against live data, resolving the 
 
 **Decision: carry fees as manually-set values for now; computed fees are a deferred enhancement.** The Salesforce version did **not** compute fees — `Broken_Carton_Fee__c` / `Minimum_Order_Fee__c` were values set on the Order and printed as-is — and GCP follows that proven path first. PO fees are entered/explicit and itemized as `is_fee` lines; PO-gen does **not** read the `lpg.vendors` thresholds (`min_order_fee` / `broken_carton_fee` / `min_order_threshold`, still seeded $15 / $15 / $100) at generation time, and **no `pack_quantity` on `vendor_skus` is added** — it was only needed to *detect* broken-carton cases for computed fees. Computed fees (reading the vendor thresholds \+ pack quantities to make the PO a true forecast of Crown's bill for the three-way match) remain a clean follow-up, to be added deliberately when wanted. With this, all prerequisite questions for the core generator are closed; what remains (Q3–Q5, Q1) is persistence/output/send plumbing.
 
-### Q3 — Schema: how much to persist?
+### Q3 — Schema: how much to persist? — **RESOLVED (full schema)**
 
-The Salesforce version stored fees as fields on the Order and the PDF as an attached File; it did not keep a separate PO table. GCP options: (a) minimal — store the generated PDF in GCS and a pointer \+ fee values on the existing order representation; (b) full — a `purchase_orders` \+ `purchase_order_lines` schema (with `is_fee` on lines) for a proper three-way match. **The three-way-match goal argues for (b)**, but (a) is enough to ship generation. Decide based on whether PO/confirmation/invoice matching is in near-term scope.
+**Decision: option (b) — a full `purchase_orders` + `purchase_order_lines` schema.** The three-way-match goal (PO ↔ confirmation ↔ invoice) is core, so POs are first-class rows, not just a PDF pointer + fee fields on the order. Migration 0004 added both tables (`is_fee` on lines, fee amount in a dedicated `amount` column, bigserial PKs, `set_updated_at` triggers, a `chk_purchase_order_lines_kind` CHECK enforcing fee-vs-product line shapes); migration 0005 added the self-referential guard enforcing Decision 7's explosion invariant. `po_number` sources from `shift4.orders.invoice_number` (ADR-0009 join key). Write is idempotent on `po_number` (regeneration replaces lines and resets to `draft`). The generated PDF is *not* persisted — it renders on demand from the stored rows (`load_purchase_order` → `render_purchase_order_pdf`), which is why Q5 (GCS) is deferred rather than required.
 
 ### Q4 — PDF generation library — **RESOLVED (reportlab)**
 
@@ -127,16 +136,32 @@ Decision 7's explosion invariant **reverses a load-bearing rule in ADR-0004.** T
 
 **0004 otherwise stands.** The separate-BOM-table choice, the `(product_sku, vendor_sku_id)` uniqueness, the COGS-via-sum approach, the packing-list use — all unchanged. Only the "every product needs a row" population rule is superseded.
 
-## Proposed build order (once questions resolved)
+## Build order (status as of 2026-06-11)
 
-1. Schema: `purchase_orders` \+ `purchase_order_lines` (with `is_fee`). No `pack_quantity` on `vendor_skus` (Q2 resolved manual — not needed); explosion uses the already-seeded `product_components`.  
-2. Core logic — a pure, testable module (like the parser/writer split): order line → `product_components` lookup → **one line per order line** (combo \= joined component SKU \+ summed cost; else passthrough) → price from `vendor_skus` → append fee line(s). Description \= Shift4 order-item text. **Built:** `purchase_order_builder.py` (pure) \+ `purchase_order_repository.py` (fetch/persist) \+ `smoke_po.py`, verified live.  
-3. PDF builder reproducing the PO32163 layout (Q5).  
-4. `lpg-admin` endpoints: generate (returns draft \+ PDF), send.  
-5. Azure `Mail.Send` setup per Q1; send endpoint via Graph.  
-6. Admin-UI composer modal (review/edit/send).  
-7. GCS storage \+ order linkage (Q5).  
-8. Terraform the new infra (send app/permissions, GCS bucket) — first real *use* of the Terraform foundation, which is committed (`233e289`: GCS backend, pinned provider, variabilized project/region) but manages **zero resources** to date. PO-gen's resources are written in Terraform from birth, per the deliberate "defer importing existing infra" strategy set when the foundation landed. (The foundation itself is not yet recorded in an ADR — see References.)
+1. ✅ **Done.** Schema: `purchase_orders` \+ `purchase_order_lines` (with `is_fee`). No `pack_quantity` on `vendor_skus` (Q2 resolved manual — not needed); explosion uses the already-seeded `product_components`.  
+2. ✅ **Done (prod-verified).** Core logic — a pure, testable module (like the parser/writer split): order line → `product_components` lookup → **one line per order line** (combo \= joined component SKU \+ summed cost; else passthrough) → price from `vendor_skus` → append fee line(s). Description \= Shift4 order-item text. **Built:** `purchase_order_builder.py` (pure) \+ `purchase_order_repository.py` (fetch/persist) \+ `smoke_po.py`, verified live.  
+3. ✅ **Done (prod-verified).** PDF builder reproducing the PO32163 layout (Q5).  
+4. ✅ **Done (prod-verified).** `lpg-admin` endpoints: generate (returns draft \+ PDF), send.  
+5. ✅ **Done (prod-verified — real send to inbox).** Azure `Mail.Send` setup per Q1; send endpoint via Graph.  
+6. ⬜ Admin-UI composer modal (review/edit/send).  
+7. ⬜ GCS storage \+ order linkage (Q5).  
+8. ⬜ Terraform the new infra (send app/permissions, GCS bucket) — first real *use* of the Terraform foundation, which is committed (`233e289`: GCS backend, pinned provider, variabilized project/region) but manages **zero resources** to date. PO-gen's resources are written in Terraform from birth, per the deliberate "defer importing existing infra" strategy set when the foundation landed. (The foundation itself is not yet recorded in an ADR — see References.)
+
+## Implementation status (2026-06-11)
+
+Built, committed, and verified in production on `v0.14.0`:
+
+- **Schema** — migrations 0004 (PO tables) + 0005 (explosion-invariant guard), applied live.
+- **Builder / repository / PDF / smoke CLI** — proven against a real-Postgres sandbox and the live DB.
+- **Endpoints on `lpg-admin`** (admin-only, 404 on the public webhook-handler):
+  - `POST /orders/{shift4_order_id}/purchase-order` — generate/regenerate a draft PO.
+  - `GET /purchase-orders/{po_number}/pdf` — render a stored PO to PDF on demand.
+  - `POST /purchase-orders/{po_number}/send` — email the PO to the vendor, mark sent. Never auto-sends; `409` double-send guard (`?force=true` to resend).
+- **Graph `Mail.Send`** — separate send-only app, mailbox-scoped Application Access Policy, secret in Secret Manager, creds on `lpg-admin`. A real PO was emailed end-to-end and received with the PDF attached.
+
+**Workflow (confirmed):** generation is **manual** (per-order, on command) and send is **manual** (explicit action; a composer popup will replace the direct call). Nothing is ever auto-generated or auto-sent to the vendor.
+
+**Still open:** build steps 6–8 — the composer modal, GCS storage (Q5), and Terraform of the new infra — tracked in `BACKLOG.md`.
 
 ## References
 
