@@ -118,10 +118,16 @@ def send_purchase_order_email(
     Returns the mailbox it was sent from. Raises GraphSendError on any failure.
     """
     mailbox = _require_env("CROWN_PO_MAILBOX")
-    subject = f"Purchase Order {po_number} \u2014 Lamp Post Globes"
+    subject = po_number
     body = body_text or (
-        f"Hello,\n\nPlease find attached purchase order {po_number} from "
-        f"Lamp Post Globes.\n\nThank you,\nLamp Post Globes"
+        "Hello,\n\n"
+        "Please review the attached purchase order.\n\n"
+        "Thanks\n\n"
+        "Justin\n\n"
+        "Thank you for your business,\n"
+        "Lamp Post Globes etc. LLC\n"
+        "Lamppostglobes.com\n"
+        "1-800-665-3594"
     )
     payload = build_send_mail_payload(
         recipient=recipient,
