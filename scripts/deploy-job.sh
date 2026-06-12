@@ -31,6 +31,10 @@ IAM_DB_USER="crown-sync-job@${PROJECT}.iam"
 AZURE_TENANT_ID="fa215d01-a503-4496-ae9f-3ab71e89037e"
 AZURE_CLIENT_ID="c36883bf-a1b7-4e63-8fc1-c965b32d76ce"
 TARGET_MAILBOX="customerservice@lamppostglobes.com"
+# Read invoices from this Inbox subfolder (an Exchange rule routes them there),
+# so the sync's $top window holds only invoices. Unset this to revert to reading
+# the whole mailbox. See ADR-0016/0017 and the mailbox-hygiene change.
+CROWN_INVOICE_FOLDER="Crown Invoices"
 
 if [[ $# -ne 1 ]]; then
     echo "Usage: $0 <version-tag>" >&2
@@ -65,6 +69,7 @@ gcloud run jobs deploy "${JOB_NAME}" \
     --set-env-vars=AZURE_TENANT_ID="${AZURE_TENANT_ID}" \
     --set-env-vars=AZURE_CLIENT_ID="${AZURE_CLIENT_ID}" \
     --set-env-vars=TARGET_MAILBOX="${TARGET_MAILBOX}" \
+    --set-env-vars=CROWN_INVOICE_FOLDER="${CROWN_INVOICE_FOLDER}" \
     --set-env-vars=INSTANCE_CONNECTION_NAME="${SQL_INSTANCE}" \
     --set-env-vars=DB_NAME=lpg \
     --set-env-vars=IAM_DB_USER="${IAM_DB_USER}" \
