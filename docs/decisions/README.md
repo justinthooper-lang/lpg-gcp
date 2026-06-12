@@ -31,6 +31,9 @@ the system looks the way it does.
 | [0014](./0014-vendor-pricing-snapshot-pattern.md) | Vendor pricing snapshots — PDF, CSV, seed script | Accepted |
 | [0015](./0015-split-webhook-and-admin-services.md) | Split webhook-handler and lpg-admin into separate Cloud Run services | Accepted |
 | [0016](./0016-vendor-invoice-ingest-from-outlook.md) | Ingest Crown invoices via Cloud Run job + Microsoft Graph service principal | Accepted |
+| [0017](./0017-crown-sync-hardening-and-restructure.md) | Crown-sync hardening — mailbox scope lockdown, forward-resilient filtering, shared package | Accepted |
+| [0018](./0018-purchase-order-generation.md) | Purchase order generation | Accepted |
+| [0019](./0019-terraform-foundation-and-import-deferral.md) | Terraform foundation and the import-deferral strategy | Accepted |
 
 ## How to add a new ADR
 
