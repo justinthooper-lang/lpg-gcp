@@ -11,10 +11,6 @@
 # 0 to destroy" before apply — any proposed change means a field needs to match
 # reality, and any proposed *replacement* is an immediate stop.
 
-import {
-  to = google_sql_database_instance.lpg_dev
-  id = "${var.project_id}/lpg-dev"
-}
 
 resource "google_sql_database_instance" "lpg_dev" {
   name             = "lpg-dev"
