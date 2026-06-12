@@ -5,58 +5,77 @@ this file tracks *what's next*, not *what was decided*.
 
 ---
 
-## Recently completed (2026-06-11)
+## Recently completed (through 2026-06-12)
 
-A full day. The purchase-order epic (ADR-0018) went from nothing to a deployed,
-vendor-emailing system, and the mailbox-hygiene fix landed too. All prod-verified:
+The Terraform-coverage and Cloud-Run-fork work, on top of the PO epic and mailbox
+hygiene from the prior day. All landed and verified:
 
-- **PO pipeline** — generate → persist → render PDF → **send via Graph Mail.Send**,
-  on `lpg-admin` (admin-only endpoints). Manual generate, manual send, `409` double-send guard.
-- **Separate send-only Azure app** — `Mail.Send` only, mailbox-scoped Application Access
-  Policy, secret in Secret Manager, creds on `lpg-admin`. A real PO emailed and received.
-- **Admin-UI composer** — Generate → inline PDF preview → Send, on the order detail page;
-  confirm gate + clean 409/422/502 handling. Replaces the curl.
-- **GCS archive** — on send, the exact emailed PDF is archived to a Terraform-managed bucket
-  (immutable, uniquely-named per send) and the `gs://` URI recorded on the PO. Best-effort:
-  a storage failure never unwinds a real send.
-- **Terraform foundation activated** — `terraform/storage.tf` is its first managed resource
-  (PO PDF bucket + bucket-scoped IAM). `apply` succeeded; state in the GCS backend.
-- **Mailbox hygiene** — (A) personal-account forward rule tightened to invoices only
-  (subject `Invoice/Tracking Information`), so order confirmations no longer reach
-  `customerservice@`; (B) invoices routed to an Inbox subfolder `Crown Invoices`, and
-  crown-sync repointed to read only that folder (`CROWN_INVOICE_FOLDER`, set in
-  `deploy-job.sh`). Verified live: job read 10 invoices from the folder, 0 non-invoices.
-  Removes the silent-invoice-miss risk from the `$top=50` window.
-- **ADR-0018 accepted** (Q1 separate send app, Q3 full schema); `BACKLOG.md` committed.
+- **PO epic (ADR-0018)** — generate → persist → render PDF → send via Graph
+  Mail.Send on `lpg-admin`, separate send-only Azure app, admin-UI composer, and
+  per-send GCS archival of the exact emailed PDF. Prod-verified end to end.
+- **Mailbox hygiene** — confirmations no longer forward; invoices route to an
+  Inbox subfolder `Crown Invoices`; crown-sync reads only that folder
+  (`CROWN_INVOICE_FOLDER` in `deploy-job.sh`). Removes the silent-invoice-miss
+  risk from the `$top` window.
+- **ADR-0019 — Terraform foundation + import-deferral strategy** — documents the
+  foundation, why it managed zero resources, and the import-vs-document fork
+  table giving every existing resource a disposition. Index backfilled (0017–0019).
+- **Terraform imports (plan-gated, clean)** — Artifact Registry repo `lpg-images`
+  and the Cloud SQL instance `lpg-dev` (with `deletion_protection`, IAM auth flag
+  preserved, data untouched). Import scaffolding removed; a fresh clone in another
+  project would *create* these, not choke on stale import blocks.
+- **ADR-0020 — Cloud Run stays script-managed** — Terraform owns durable infra;
+  Cloud Run is application delivery, owned by the deploy scripts. Considered the
+  TF-with-`ignore_changes` alternative and rejected it for this scale.
+- **`deploy.sh` upgraded to full service shape** — both services' identity,
+  scaling, Cloud SQL, env, secrets, and IAM invoker policy are now declared on
+  every deploy (mirroring `deploy-job.sh`), closing the gap where `deploy.sh` set
+  only `--image`. Verified: a `v0.17.0` redeploy reproduced the live env/secrets/
+  IAM exactly; all smoke checks passed.
+- **ADR-0017 read-app verification** — the read app's `RestrictAccess` policy
+  confirmed (policy state + scope-group-of-one + live positive case + a
+  `Test-ApplicationAccessPolicy` deny). Live Graph 403 not obtainable for lack of
+  a clean out-of-scope mailbox; recorded as a known limitation in ADR-0017.
 
-Versions live: services `v0.16.0`, crown-sync job `v0.13.0`. Crown `po_email` reset to NULL
-(safe — a stray send `422`s rather than emailing anyone).
+`terraform/` now manages: backend, providers, versions, variables, storage (PO
+bucket + IAM), outputs, artifact_registry, cloud_sql. Services live `v0.17.0`,
+crown-sync job `v0.13.0`. Crown `po_email` is NULL (a stray send `422`s).
 
 ---
 
 ## Active / next
 
-### Widen Terraform coverage
-The bucket is Terraform-managed, but the rest of the new infra was built by hand (gcloud/
-portal). Bring it under Terraform so the system is IaC-managed, not just the bucket —
-honoring ADR-0018's "new infra in Terraform from birth" intent retroactively where feasible.
-- [ ] Codify the GCS `secretAccessor` / bucket IAM already created (some is in `storage.tf`; audit for drift)
-- [ ] Decide import vs. document-only for the manually-made pieces: the **send Azure app** (out-of-band, not GCP — likely stays documented, not TF), Secret Manager secret `azure-graph-send-secret`, the `lpg-admin` env/secret wiring, Cloud Run service config
-- [ ] `terraform plan` should report **no drift** once the intended resources are codified
-- [ ] Note: Cloud Run services are currently deployed via `deploy.sh` (imperative); decide whether they move under TF or stay script-managed (a real reference-architecture fork worth recording)
+### Finish Terraform coverage of durable infra (optional, low priority)
+Per ADR-0019's dispositions, the remaining import candidates are stable and
+low-risk. None urgent — the high-value imports (DB, registry) are done.
+- [ ] Import the **Secret Manager secret resources** (the secret *values* stay
+  out-of-band — never in TF state). Demonstrates the values-out pattern.
+- [ ] Import the **project IAM bindings** on the compute SA (intersects the
+  per-SA split flagged in ADR-0011).
+- [ ] After any of the above, `terraform plan` should report **no drift**.
 
-### ADR-0019 — Terraform foundation + import-deferral strategy
-- [ ] Document the foundation (`233e289`), why it managed zero resources, the "write new resources from birth / defer importing existing infra" strategy, and the bucket as its first use.
+### Cloud Run fork — DECIDED (ADR-0020), no action
+Services + job stay script-managed; revisit only if a CI pipeline/team makes
+declarative drift-detection on service config worth a second model.
 
 ---
 
 ## Backlog
 
-- [ ] **ADR-0017 deferred** — verify the *read* app's `ApplicationAccessPolicy` scope lockdown is fully propagated / in effect in production (the send app's policy is confirmed working via the live send; the read app's was never re-verified post-propagation).
+- [ ] **Live Graph 403 for the read app** (optional, to fully close the ADR-0017
+  verification): provision a throwaway second mailbox (shared mailbox, no license)
+  outside "Crown Invoice Sync Scope", acquire an app token, and confirm a `403
+  ApplicationAccessPolicy` against it. Then delete the mailbox.
+- [ ] **Document the Azure apps** (read + send) as out-of-band, wrong-provider
+  resources (ADR-0019 says document-only, not TF) — a short note if not already
+  covered by ADR-0017/0018.
+- [ ] Secret rotation playbook; Crown direct-to-tenant delivery (carried forward
+  from ADR-0017).
 
 ## Watch items (data quality, not bugs)
 
 - Ingest a real **combo** order so PO explosion is exercised in prod (dev DB has only passthrough orders).
 - Ingested orders are missing `ship_to_*` (PDF degrades to "(no ship-to on order)").
-- PO PDF `Date` = render date, not a fixed issue date — but the **archived** sent PDF now freezes the date at send time, so the audit copy is stable. Revisit only if Crown needs a fixed date on regenerated previews.
+- PO PDF `Date` = render date, not a fixed issue date — but the **archived** sent PDF freezes the date at send time, so the audit copy is stable. Revisit only if Crown needs a fixed date on regenerated previews.
 - New-combo passthrough gap (ADR-0010 / ADR-0018 watch note): a combo SKU not yet in `product_components` stubs in and silently passes through to Crown. Consider a guard/report flagging combo-shaped SKUs with no BOM rows.
+- Stray empty `Testing` folder created in `customerservice@` during the ADR-0017 verification — delete at leisure (harmless).

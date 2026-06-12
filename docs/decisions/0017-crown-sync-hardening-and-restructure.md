@@ -106,3 +106,33 @@ The reconciliation guard paid for itself here: it converted a silent $447.89 cos
 - **Terraform** the above infrastructure (job, SAs, IAM, scheduler) — currently manual gcloud.
 - **deploy.sh** doesn't yet build/deploy the crown-sync image or job; that's still manual gcloud builds submit + jobs update. Generalize or add deploy-job.sh.
 - Crown direct-to-tenant delivery; secret rotation playbook (carried forward).
+
+## Verification — read-app mailbox restriction (2026-06-12)
+
+The deferred check — does the read app's `RestrictAccess` policy actually limit
+it to `customerservice@` in production, past the propagation window? — was
+confirmed from three independent angles:
+
+- **Policy state:** `Get-ApplicationAccessPolicy` shows `AccessRight=RestrictAccess`
+  on the read app (`c36883bf-…`), `IsValid=True`, scoped to the mail-enabled
+  security group "Crown Invoice Sync Scope" (`crown-sync-scope@lamppostglobes.com`).
+- **Scope membership:** that group contains exactly one member,
+  `customerservice@lamppostglobes.com` — so the app is permitted exactly one
+  mailbox by construction.
+- **Behavioral:** the positive case is live in prod (the crown-sync job read
+  `customerservice@` this session); the negative case returns
+  `AccessCheckResult: Denied` from `Test-ApplicationAccessPolicy` for an
+  out-of-scope tenant recipient (`lamppostglobes@outlook.com`).
+
+**Not obtained:** a live Microsoft Graph `403` against an out-of-scope mailbox —
+the strongest possible proof. The tenant has no clean second target: the
+Discovery Search Mailbox isn't Graph-addressable (no Entra object → `404`), an
+external address (e.g. a Gmail) `404`s as "invalid user" before the policy is
+evaluated, and a folder inside `customerservice@` is in scope by definition.
+A live `403` would require provisioning a second real mailbox outside the scope
+group (a shared mailbox suffices, no license needed). Recorded as a known
+limitation; the restriction itself is confirmed by the three checks above.
+
+The same `RestrictAccess` policy is in place for the send app (`3e9eda8a-…`,
+"Crown PO Send app restricted to customerservice mailbox"), already confirmed
+operationally by the live PO send (ADR-0018).
