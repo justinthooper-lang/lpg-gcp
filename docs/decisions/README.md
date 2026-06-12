@@ -34,6 +34,7 @@ the system looks the way it does.
 | [0017](./0017-crown-sync-hardening-and-restructure.md) | Crown-sync hardening — mailbox scope lockdown, forward-resilient filtering, shared package | Accepted |
 | [0018](./0018-purchase-order-generation.md) | Purchase order generation | Accepted |
 | [0019](./0019-terraform-foundation-and-import-deferral.md) | Terraform foundation and the import-deferral strategy | Accepted |
+| [0020](./0020-cloud-run-script-managed.md) | Cloud Run stays script-managed; deploy scripts own the full service shape | Accepted |
 
 ## How to add a new ADR
 
