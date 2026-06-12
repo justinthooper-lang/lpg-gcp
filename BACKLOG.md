@@ -7,61 +7,56 @@ this file tracks *what's next*, not *what was decided*.
 
 ## Recently completed (2026-06-11)
 
-PO-generation pipeline (ADR-0018) built, deployed, and prod-verified end-to-end on `v0.14.0`:
-generate → persist → render PDF → **send via Graph Mail.Send** (real PO emailed and received).
-Separate send-only Azure app with mailbox-scoped Application Access Policy; manual-only send with
-a `409` double-send guard. ADR-0018 accepted (Q1 + Q3 resolved). Crown `po_email` reset to NULL
-(safe — a stray send now `422`s rather than emailing anyone).
+A full day. The purchase-order epic (ADR-0018) went from nothing to a deployed,
+vendor-emailing system, and the mailbox-hygiene fix landed too. All prod-verified:
+
+- **PO pipeline** — generate → persist → render PDF → **send via Graph Mail.Send**,
+  on `lpg-admin` (admin-only endpoints). Manual generate, manual send, `409` double-send guard.
+- **Separate send-only Azure app** — `Mail.Send` only, mailbox-scoped Application Access
+  Policy, secret in Secret Manager, creds on `lpg-admin`. A real PO emailed and received.
+- **Admin-UI composer** — Generate → inline PDF preview → Send, on the order detail page;
+  confirm gate + clean 409/422/502 handling. Replaces the curl.
+- **GCS archive** — on send, the exact emailed PDF is archived to a Terraform-managed bucket
+  (immutable, uniquely-named per send) and the `gs://` URI recorded on the PO. Best-effort:
+  a storage failure never unwinds a real send.
+- **Terraform foundation activated** — `terraform/storage.tf` is its first managed resource
+  (PO PDF bucket + bucket-scoped IAM). `apply` succeeded; state in the GCS backend.
+- **Mailbox hygiene** — (A) personal-account forward rule tightened to invoices only
+  (subject `Invoice/Tracking Information`), so order confirmations no longer reach
+  `customerservice@`; (B) invoices routed to an Inbox subfolder `Crown Invoices`, and
+  crown-sync repointed to read only that folder (`CROWN_INVOICE_FOLDER`, set in
+  `deploy-job.sh`). Verified live: job read 10 invoices from the folder, 0 non-invoices.
+  Removes the silent-invoice-miss risk from the `$top=50` window.
+- **ADR-0018 accepted** (Q1 separate send app, Q3 full schema); `BACKLOG.md` committed.
+
+Versions live: services `v0.16.0`, crown-sync job `v0.13.0`. Crown `po_email` reset to NULL
+(safe — a stray send `422`s rather than emailing anyone).
 
 ---
 
 ## Active / next
 
-### Admin-UI composer modal (the manual send workflow)
-The send endpoint is live but currently driven by a raw `curl`. Build the popup that replaces it:
-on the order detail page, **Generate PO → preview the PDF → Send** (the button calls the existing
-`POST .../send`). Send stays manual (never auto-send); email template is fixed (no per-send editing).
-- [ ] "Generate PO" action on the order detail HTML page → `POST /orders/{id}/purchase-order`
-- [ ] Inline PDF preview from `GET /purchase-orders/{po_number}/pdf`
-- [ ] "Send" button → `POST /purchase-orders/{po_number}/send`, surface 409/422/502 cleanly
-- [ ] Set the recipient deliberately (vendor `po_email`) — guard against sending to a test address
+### Widen Terraform coverage
+The bucket is Terraform-managed, but the rest of the new infra was built by hand (gcloud/
+portal). Bring it under Terraform so the system is IaC-managed, not just the bucket —
+honoring ADR-0018's "new infra in Terraform from birth" intent retroactively where feasible.
+- [ ] Codify the GCS `secretAccessor` / bucket IAM already created (some is in `storage.tf`; audit for drift)
+- [ ] Decide import vs. document-only for the manually-made pieces: the **send Azure app** (out-of-band, not GCP — likely stays documented, not TF), Secret Manager secret `azure-graph-send-secret`, the `lpg-admin` env/secret wiring, Cloud Run service config
+- [ ] `terraform plan` should report **no drift** once the intended resources are codified
+- [ ] Note: Cloud Run services are currently deployed via `deploy.sh` (imperative); decide whether they move under TF or stay script-managed (a real reference-architecture fork worth recording)
 
-### Mailbox hygiene — forwarding clutter + invoice subfolder
-**Problem.** The personal-account auto-forward rule forwards *both* Crown invoices and
-order-confirmation emails into `customerservice@lamppostglobes.com`. Beyond clutter, it's a
-**correctness risk for crown-sync**: its query (`/users/{mailbox}/messages?$top=50`, newest-first,
-filtered client-side) reads only the 50 most-recent messages across the whole mailbox, so clutter
-competes for slots — enough non-invoice mail between runs could push a real invoice out of the
-window and it would be **silently missed**.
-
-**Part A — order confirmations: stop forwarding entirely.** Tighten the personal-account
-auto-forward rule so it forwards **only Crown invoices** (subject signature + attachment).
-Confirmations should never reach `customerservice@`.
-
-**Part B — invoices to a subfolder, sync reads it directly.** Subfolder: **`Crown Invoices`**.
-- [ ] M365 inbox rule on `customerservice@`: move Crown invoices → `Crown Invoices` subfolder
-- [ ] Update `fetch_crown_messages` to read `/users/{mailbox}/mailFolders/{folderId}/messages` so the `$top=50` window holds only invoices (removes the clutter-contention risk)
-- [ ] Resolve folder by id / well-known-name path; handle folder-not-found
-- [ ] Confirm `ApplicationAccessPolicy` (Mail.Read) still satisfied — subfolder is same mailbox scope
-
-**Notes.** Moving invoices to a subfolder does **not** break the current `/messages` query (it spans
-all folders); the folder-targeted read is the *improvement*. A and B are complementary: A removes the
-cause at the source, B makes the sync structurally immune regardless of other mail. Touches ADR-0016 /
-ADR-0017 mailbox topology → warrants an ADR addendum once it lands. Work split: Exchange config = manual
-in M365; query change = code, built together.
+### ADR-0019 — Terraform foundation + import-deferral strategy
+- [ ] Document the foundation (`233e289`), why it managed zero resources, the "write new resources from birth / defer importing existing infra" strategy, and the bucket as its first use.
 
 ---
 
 ## Backlog
 
-- [ ] **GCS storage** for generated PO PDFs (ADR-0018 Q5, still open). Currently rendered on demand from stored rows; add a bucket + order/PO linkage if/when durable copies are wanted.
-- [ ] **Terraform** the new PO infra (PO tables, send app/permissions, GCS bucket) — first real *use* of the foundation `233e289` (manages zero resources today). PO-gen resources written in TF from birth per the "defer importing existing infra" strategy.
-- [ ] **ADR-0019** — record the Terraform foundation + its import-deferral strategy (foundation committed but undocumented).
-- [ ] **ADR-0017 deferred** — verify the read app's `ApplicationAccessPolicy` scope lockdown is fully propagated / in effect in production.
+- [ ] **ADR-0017 deferred** — verify the *read* app's `ApplicationAccessPolicy` scope lockdown is fully propagated / in effect in production (the send app's policy is confirmed working via the live send; the read app's was never re-verified post-propagation).
 
 ## Watch items (data quality, not bugs)
 
 - Ingest a real **combo** order so PO explosion is exercised in prod (dev DB has only passthrough orders).
 - Ingested orders are missing `ship_to_*` (PDF degrades to "(no ship-to on order)").
-- PO PDF `Date` = render date, not a fixed issue date — revisit if Crown needs a stable date (store a header issue date).
+- PO PDF `Date` = render date, not a fixed issue date — but the **archived** sent PDF now freezes the date at send time, so the audit copy is stable. Revisit only if Crown needs a fixed date on regenerated previews.
 - New-combo passthrough gap (ADR-0010 / ADR-0018 watch note): a combo SKU not yet in `product_components` stubs in and silently passes through to Crown. Consider a guard/report flagging combo-shaped SKUs with no BOM rows.
