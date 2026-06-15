@@ -34,6 +34,7 @@ from purchase_order_pdf import render_purchase_order_pdf
 from graph_mail import GraphSendError, send_purchase_order_email
 from gcs_storage import GcsStorageError, upload_po_pdf
 from po_composer import PO_COMPOSER_TEMPLATE
+from order_overrides_form import ORDER_OVERRIDES_TEMPLATE
 from purchase_order_repository import (
     PurchaseOrderError,
     generate_purchase_order,
@@ -538,6 +539,7 @@ async def get_order_html(order_id: int, request: Request):
     t = o["totals"]
 
     composer_html = PO_COMPOSER_TEMPLATE.replace("__ORDER_ID__", str(order_id))
+    overrides_html = ORDER_OVERRIDES_TEMPLATE.replace("__ORDER_ID__", str(order_id))
 
     html = f"""<!DOCTYPE html>
 <html>
@@ -601,11 +603,176 @@ async def get_order_html(order_id: int, request: Request):
 
     {f'<h2>Comments</h2><p>{o["comments"]}</p>' if o['comments'] else ''}
 
+    {overrides_html}
+
     {composer_html}
 </body>
 </html>"""
 
     return HTMLResponse(content=html)
+
+
+# --- Order overrides (ADR-0021): LPG-owned corrections over the mirror ---
+# Columns that lpg.v_orders_effective overlays; must match the override table
+# and the view. The metadata columns (override_reason, overridden_by) are
+# handled separately and are not part of the COALESCE overlay.
+_OVERRIDE_OVERLAY_COLUMNS = (
+    "bill_first_name", "bill_last_name", "bill_company", "bill_address",
+    "bill_address2", "bill_city", "bill_state", "bill_zip", "bill_country",
+    "bill_phone", "bill_email",
+    "ship_to_first_name", "ship_to_last_name", "ship_to_company",
+    "ship_to_address", "ship_to_address2", "ship_to_city", "ship_to_state",
+    "ship_to_zip", "ship_to_country", "ship_to_phone",
+    "comments",
+)
+
+
+def _overrides_payload(cur, order_id: int) -> dict | None:
+    """Build the {mirror, override, has_override} payload for an order.
+
+    Returns None if the order does not exist in the shift4.orders mirror.
+    """
+    cols = ", ".join(_OVERRIDE_OVERLAY_COLUMNS)
+    cur.execute(
+        f"SELECT {cols} FROM shift4.orders WHERE shift4_order_id = %s",
+        (order_id,),
+    )
+    m = cur.fetchone()
+    if m is None:
+        return None
+    mirror = dict(zip(_OVERRIDE_OVERLAY_COLUMNS, m))
+
+    cur.execute(
+        f"SELECT {cols}, override_reason FROM lpg.order_overrides "
+        f"WHERE shift4_order_id = %s",
+        (order_id,),
+    )
+    o = cur.fetchone()
+    if o is None:
+        override = {c: None for c in _OVERRIDE_OVERLAY_COLUMNS}
+        override["override_reason"] = None
+        has_override = False
+    else:
+        override = dict(zip(_OVERRIDE_OVERLAY_COLUMNS, o[:-1]))
+        override["override_reason"] = o[-1]
+        has_override = True
+
+    return {
+        "shift4_order_id": order_id,
+        "mirror": mirror,
+        "override": override,
+        "has_override": has_override,
+    }
+
+
+async def get_order_overrides(order_id: int, request: Request):
+    """Mirror + current override values for an order (read).
+
+    Same auth as the other read endpoints (IAM on lpg-admin, token elsewhere).
+    """
+    if not is_authorized_read(request.query_params.get("token")):
+        return JSONResponse(
+            status_code=401, content={"error": "invalid or missing token"}
+        )
+    try:
+        with get_connection() as conn:
+            cur = conn.cursor()
+            try:
+                payload = _overrides_payload(cur, order_id)
+            finally:
+                cur.close()
+    except Exception as exc:
+        log.error("order_overrides_read_error", error=str(exc))
+        return JSONResponse(status_code=500, content={"error": "database error"})
+    if payload is None:
+        return JSONResponse(
+            status_code=404, content={"error": f"order {order_id} not found"}
+        )
+    return payload
+
+
+async def save_order_overrides(order_id: int, request: Request):
+    """Upsert (or delete) an order's override row. **lpg-admin only.**
+
+    Writes ONLY to lpg.order_overrides — never the shift4.orders mirror
+    (ADR-0021). Blank fields are stored as NULL (inherit from the mirror). If
+    every overlay field is blank, any existing override row is deleted (full
+    revert to storefront). IAM-protected on lpg-admin; 404 on the public service.
+    """
+    if not is_admin_service():
+        return JSONResponse(status_code=404, content={"error": "not found"})
+
+    try:
+        body = json.loads(await request.body() or b"{}")
+    except json.JSONDecodeError as exc:
+        return JSONResponse(
+            status_code=422, content={"error": f"invalid request body: {exc}"}
+        )
+
+    def _clean(value):
+        if value is None:
+            return None
+        s = str(value).strip()
+        return s or None
+
+    values = {c: _clean(body.get(c)) for c in _OVERRIDE_OVERLAY_COLUMNS}
+    reason = _clean(body.get("override_reason"))
+    all_blank = all(v is None for v in values.values())
+    actor = request.headers.get("X-Goog-Authenticated-User-Email") or "lpg-admin"
+
+    try:
+        with get_connection() as conn:
+            cur = conn.cursor()
+            try:
+                cur.execute(
+                    "SELECT 1 FROM shift4.orders WHERE shift4_order_id = %s",
+                    (order_id,),
+                )
+                if cur.fetchone() is None:
+                    return JSONResponse(
+                        status_code=404,
+                        content={"error": f"order {order_id} not found"},
+                    )
+
+                if all_blank:
+                    # Nothing to overlay — revert by deleting any existing row.
+                    # A reason with no field corrections is not a real override.
+                    cur.execute(
+                        "DELETE FROM lpg.order_overrides WHERE shift4_order_id = %s",
+                        (order_id,),
+                    )
+                else:
+                    cols = list(_OVERRIDE_OVERLAY_COLUMNS)
+                    meta = ["override_reason", "overridden_by"]
+                    insert_cols = ["shift4_order_id"] + cols + meta
+                    placeholders = ", ".join(["%s"] * len(insert_cols))
+                    updates = ", ".join(f"{c} = EXCLUDED.{c}" for c in cols + meta)
+                    cur.execute(
+                        f"""
+                        INSERT INTO lpg.order_overrides ({", ".join(insert_cols)})
+                        VALUES ({placeholders})
+                        ON CONFLICT (shift4_order_id) DO UPDATE SET
+                            {updates}, updated_at = NOW()
+                        """,
+                        [order_id] + [values[c] for c in cols] + [reason, actor],
+                    )
+
+                payload = _overrides_payload(cur, order_id)
+            finally:
+                cur.close()
+            # get_connection commits on clean exit.
+    except Exception as exc:
+        log.error("order_overrides_write_error", error=str(exc), exc_info=True)
+        return JSONResponse(status_code=500, content={"error": "database error"})
+
+    log.info(
+        "order_overrides_saved",
+        shift4_order_id=order_id,
+        has_override=payload["has_override"],
+        actor=actor,
+    )
+    return payload
+
 
 # Read endpoints are registered only when running as the lpg-admin
 # service (IAM-protected) or locally for development (no K_SERVICE).
@@ -627,6 +794,12 @@ if is_admin_service() or _K_SERVICE is None:
     app.add_api_route(
         "/orders/{order_id}.html", get_order_html, methods=["GET"],
         response_class=HTMLResponse,
+    )
+    app.add_api_route(
+        "/orders/{order_id:int}/overrides", get_order_overrides, methods=["GET"],
+    )
+    app.add_api_route(
+        "/orders/{order_id:int}/overrides", save_order_overrides, methods=["POST"],
     )
 
 
