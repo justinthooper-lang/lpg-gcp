@@ -5,6 +5,23 @@ this file tracks *what's next*, not *what was decided*.
 
 ---
 
+## Recently completed (2026-06-15)
+
+- **ADR-0021 — order field overrides** — LPG-owned corrections overlay the
+  read-only `shift4.orders` mirror instead of editing it in place (which
+  re-ingest would silently clobber). New `lpg.order_overrides` table + the
+  `lpg.v_orders_effective` view (COALESCE override over mirror); the PO builder,
+  order list, and order detail now read the view, so a correction flows straight
+  into generated POs. Admin order-detail page gains an override editor (writes
+  only to `lpg.order_overrides`; blank = inherit, clear-all = revert). Scope is
+  addresses/contact/comments only — totals + status stay non-overridable to
+  protect Crown-invoice reconciliation. Migration applied to `lpg-dev`
+  (idempotent, dry-run-validated); shipped in services `v0.18.0`. Verified: 15
+  handler checks + the deploy smoke matrix + live route checks (admin 200, public
+  404).
+
+---
+
 ## Recently completed (through 2026-06-12)
 
 The Terraform-coverage and Cloud-Run-fork work, on top of the PO epic and mailbox
@@ -38,7 +55,7 @@ hygiene from the prior day. All landed and verified:
   a clean out-of-scope mailbox; recorded as a known limitation in ADR-0017.
 
 `terraform/` now manages: backend, providers, versions, variables, storage (PO
-bucket + IAM), outputs, artifact_registry, cloud_sql. Services live `v0.17.0`,
+bucket + IAM), outputs, artifact_registry, cloud_sql. Services live `v0.18.0`,
 crown-sync job `v0.13.0`. Crown `po_email` is NULL (a stray send `422`s).
 
 ---
@@ -76,6 +93,8 @@ declarative drift-detection on service config worth a second model.
 
 - Ingest a real **combo** order so PO explosion is exercised in prod (dev DB has only passthrough orders).
 - Ingested orders are missing `ship_to_*` (PDF degrades to "(no ship-to on order)").
+  Now fixable per-order via the ADR-0021 override editor on the admin order page;
+  the upstream gap (Shift4 not sending ship-to at order-created time) still stands.
 - PO PDF `Date` = render date, not a fixed issue date — but the **archived** sent PDF freezes the date at send time, so the audit copy is stable. Revisit only if Crown needs a fixed date on regenerated previews.
 - New-combo passthrough gap (ADR-0010 / ADR-0018 watch note): a combo SKU not yet in `product_components` stubs in and silently passes through to Crown. Consider a guard/report flagging combo-shaped SKUs with no BOM rows.
 - Stray empty `Testing` folder created in `customerservice@` during the ADR-0017 verification — delete at leisure (harmless).
