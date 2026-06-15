@@ -262,7 +262,7 @@ async def list_orders(request: Request):
                         order_status,
                         grand_total,
                         updated_at
-                    FROM shift4.orders
+                    FROM lpg.v_orders_effective
                     ORDER BY updated_at DESC
                     LIMIT %s
                     """,
@@ -380,8 +380,8 @@ async def get_order(order_id: int, request: Request):
                         bill_address, bill_address2, bill_city, bill_state,
                         bill_zip, bill_country, bill_phone, bill_email,
                         subtotal, tax, shipping_cost, discount, grand_total,
-                        updated_at
-                    FROM shift4.orders
+                        updated_at, has_override
+                    FROM lpg.v_orders_effective
                     WHERE shift4_order_id = %s
                     """,
                     (order_id,),
@@ -421,6 +421,7 @@ async def get_order(order_id: int, request: Request):
                         "grand_total": str(row[21]),
                     },
                     "updated_at": row[22].isoformat() if row[22] else None,
+                    "has_override": row[23],
                 }
 
                 cur.execute(

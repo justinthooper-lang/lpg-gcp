@@ -97,7 +97,7 @@ def fetch_order_context(conn, shift4_order_id: int) -> OrderContext:
                ship_to_first_name, ship_to_last_name, ship_to_company,
                ship_to_address, ship_to_city, ship_to_state, ship_to_zip,
                ship_to_phone, comments
-        FROM shift4.orders
+        FROM lpg.v_orders_effective
         WHERE shift4_order_id = %s
         """,
         (shift4_order_id,),
