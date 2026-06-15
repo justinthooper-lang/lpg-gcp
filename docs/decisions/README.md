@@ -35,6 +35,7 @@ the system looks the way it does.
 | [0018](./0018-purchase-order-generation.md) | Purchase order generation | Accepted |
 | [0019](./0019-terraform-foundation-and-import-deferral.md) | Terraform foundation and the import-deferral strategy | Accepted |
 | [0020](./0020-cloud-run-script-managed.md) | Cloud Run stays script-managed; deploy scripts own the full service shape | Accepted |
+| [0021](./0021-order-field-overrides.md) | Order field corrections via an LPG-owned override overlay | Accepted |
 
 ## How to add a new ADR
 
