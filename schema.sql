@@ -194,7 +194,8 @@ COMMENT ON TABLE shift4.products IS
 -- =============================================================
 
 CREATE TABLE IF NOT EXISTS shift4.shipments (
-    shift4_shipment_id      BIGINT          PRIMARY KEY,
+    id                      BIGINT          GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    shift4_shipment_id      BIGINT          NOT NULL,   -- Shift4 ShipmentID; 0 at creation, not unique (ADR-0023)
     shift4_order_id         BIGINT          NOT NULL REFERENCES shift4.orders(shift4_order_id),
 
     -- Shipping address (denormalized per ADR-0002)
@@ -239,7 +240,6 @@ CREATE INDEX IF NOT EXISTS idx_shipments_order ON shift4.shipments(shift4_order_
 CREATE TABLE IF NOT EXISTS shift4.order_items (
     id                      BIGSERIAL       PRIMARY KEY,
     shift4_order_id         BIGINT          NOT NULL REFERENCES shift4.orders(shift4_order_id),
-    shift4_shipment_id      BIGINT          REFERENCES shift4.shipments(shift4_shipment_id),
     sku                     TEXT            NOT NULL REFERENCES shift4.products(sku) ON UPDATE CASCADE,
     description             TEXT,
     quantity                INT             NOT NULL,
