@@ -5,6 +5,24 @@ this file tracks *what's next*, not *what was decided*.
 
 ---
 
+## Recently completed (2026-06-16)
+
+- **ADR-0022 — editable draft purchase-order lines** — the draft PO is now the
+  editable working document: add / edit / delete lines directly on
+  `lpg.purchase_order_lines` before sending to Crown. The order and
+  `shift4.order_items` stay pristine mirrors (chose this over extending the
+  ADR-0021 overlay to a 1:many collection — the PO is already the LPG-owned
+  artifact). Two policies baked in: **sent POs are immutable** (409 on edit/regen;
+  closes ADR-0018's open note), and **manual edits are protected from
+  regeneration** via a new `manually_edited` flag (migration 0007) — "Generate"
+  becomes a confirmed "Regenerate from order (discards edits)". New admin-only
+  endpoints (GET/POST `/lines`, PATCH/DELETE `/lines/{id}`); composer line table
+  is now inline-editable with add-product/add-fee rows. Shipped `v0.19.0`.
+  Verified: 17 handler checks (CRUD + shape/qty validation + immutability + regen
+  guard) + deploy smoke + live checks (admin 200, sent-PO edit 409, public 404).
+
+---
+
 ## Recently completed (2026-06-15)
 
 - **ADR-0021 — order field overrides** — LPG-owned corrections overlay the
@@ -55,7 +73,7 @@ hygiene from the prior day. All landed and verified:
   a clean out-of-scope mailbox; recorded as a known limitation in ADR-0017.
 
 `terraform/` now manages: backend, providers, versions, variables, storage (PO
-bucket + IAM), outputs, artifact_registry, cloud_sql. Services live `v0.18.0`,
+bucket + IAM), outputs, artifact_registry, cloud_sql. Services live `v0.19.0`,
 crown-sync job `v0.13.0`. Crown `po_email` is NULL (a stray send `422`s).
 
 ---
