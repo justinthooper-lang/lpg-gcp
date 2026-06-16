@@ -37,12 +37,18 @@ from po_composer import PO_COMPOSER_TEMPLATE
 from order_overrides_form import ORDER_OVERRIDES_TEMPLATE
 from purchase_order_repository import (
     PurchaseOrderError,
+    PurchaseOrderImmutable,
+    POLineError,
+    add_po_line,
+    delete_po_line,
     generate_purchase_order,
     get_purchase_order_status,
     get_vendor_po_email,
     load_purchase_order,
     mark_purchase_order_sent,
+    po_editable_state,
     purchase_order_to_dict,
+    update_po_line,
 )
 
 import json
@@ -823,10 +829,17 @@ async def generate_order_purchase_order(shift4_order_id: int, request: Request):
     Returns the draft PO as JSON. Regeneration updates the PO in place and resets
     its status to draft. Responds 404 if the order doesn't exist, 422 on a bad
     body, 500 on a database error.
+
+    Regeneration is destructive — it rebuilds lines from the order. To protect
+    work, it refuses (409) to overwrite a PO that has been hand-edited
+    (manually_edited) or already sent, unless ``?force=true`` (ADR-0022). A forced
+    regeneration resets manually_edited to false.
     """
     if not is_admin_service():
         # Not reachable on the public service.
         return JSONResponse(status_code=404, content={"error": "not found"})
+
+    force = request.query_params.get("force", "").lower() in ("1", "true", "yes")
 
     # Parse optional manual fees from the body.
     fees: list[Fee] = []
@@ -848,6 +861,25 @@ async def generate_order_purchase_order(shift4_order_id: int, request: Request):
     structlog.contextvars.bind_contextvars(shift4_order_id=shift4_order_id)
     try:
         with get_connection() as conn:
+            # Guard: don't silently clobber a hand-edited or sent PO (ADR-0022).
+            if not force:
+                cur = conn.cursor()
+                cur.execute(
+                    "SELECT po_number, manually_edited, status FROM lpg.purchase_orders "
+                    "WHERE shift4_order_id = %s",
+                    (shift4_order_id,),
+                )
+                existing = cur.fetchone()
+                if existing is not None:
+                    po_num, edited, status = existing
+                    if status == "sent":
+                        return JSONResponse(status_code=409, content={
+                            "error": f"PO {po_num} has been sent; pass ?force=true to "
+                                     "regenerate (this discards the sent draft)"})
+                    if edited:
+                        return JSONResponse(status_code=409, content={
+                            "error": f"PO {po_num} has manual edits; pass ?force=true to "
+                                     "regenerate from the order (this discards your edits)"})
             po, result = generate_purchase_order(conn, shift4_order_id, fees=fees)
             # get_connection commits on clean exit.
     except PurchaseOrderError as exc:
@@ -867,6 +899,96 @@ async def generate_order_purchase_order(shift4_order_id: int, request: Request):
         unpriced=len(result.unpriced_skus),
     )
     return purchase_order_to_dict(po, result)
+
+
+# --- Editable draft-PO lines (ADR-0022). All lpg-admin only. --------------- #
+def _run_po_line_op(op):
+    """Run a repository line op in a transaction, mapping errors to HTTP.
+
+    ``op`` is a callable taking the open connection and returning the editable
+    state dict (or None when the PO doesn't exist).
+    """
+    try:
+        with get_connection() as conn:
+            state = op(conn)
+            # get_connection commits on clean exit.
+        if state is None:
+            return JSONResponse(status_code=404, content={"error": "purchase order not found"})
+        return state
+    except POLineError as exc:
+        return JSONResponse(status_code=422, content={"error": str(exc)})
+    except PurchaseOrderImmutable as exc:
+        return JSONResponse(status_code=409, content={"error": str(exc)})
+    except PurchaseOrderError as exc:
+        return JSONResponse(status_code=404, content={"error": str(exc)})
+    except Exception as exc:
+        log.error("po_line_op_error", error=str(exc), exc_info=True)
+        return JSONResponse(status_code=500, content={"error": "database error"})
+
+
+async def _po_line_body(request: Request):
+    """Parse a line JSON body, or return (None, error-response)."""
+    try:
+        return json.loads(await request.body() or b"{}"), None
+    except json.JSONDecodeError as exc:
+        return None, JSONResponse(
+            status_code=422, content={"error": f"invalid request body: {exc}"}
+        )
+
+
+@app.get("/purchase-orders/{po_number}/lines")
+async def list_purchase_order_lines(po_number: str):
+    """Editable state of a PO (status, manually_edited, lines with ids, total).
+    **lpg-admin only.**"""
+    if not is_admin_service():
+        return JSONResponse(status_code=404, content={"error": "not found"})
+    return _run_po_line_op(lambda conn: po_editable_state(conn, po_number))
+
+
+@app.post("/purchase-orders/{po_number}/lines")
+async def add_purchase_order_line(po_number: str, request: Request):
+    """Append a line to a draft PO. **lpg-admin only.** 409 if sent, 422 on bad shape."""
+    if not is_admin_service():
+        return JSONResponse(status_code=404, content={"error": "not found"})
+    body, err = await _po_line_body(request)
+    if err:
+        return err
+    return _run_po_line_op(lambda conn: add_po_line(
+        conn, po_number,
+        is_fee=bool(body.get("is_fee", False)),
+        vendor_sku_code=body.get("vendor_sku_code"),
+        description=body.get("description"),
+        quantity=body.get("quantity"),
+        unit_cost=body.get("unit_cost"),
+        amount=body.get("amount"),
+    ))
+
+
+@app.patch("/purchase-orders/{po_number}/lines/{line_id}")
+async def edit_purchase_order_line(po_number: str, line_id: int, request: Request):
+    """Replace a draft PO line's fields. **lpg-admin only.** 409 if sent, 422 on bad shape."""
+    if not is_admin_service():
+        return JSONResponse(status_code=404, content={"error": "not found"})
+    body, err = await _po_line_body(request)
+    if err:
+        return err
+    return _run_po_line_op(lambda conn: update_po_line(
+        conn, po_number, line_id,
+        is_fee=body.get("is_fee"),
+        vendor_sku_code=body.get("vendor_sku_code"),
+        description=body.get("description"),
+        quantity=body.get("quantity"),
+        unit_cost=body.get("unit_cost"),
+        amount=body.get("amount"),
+    ))
+
+
+@app.delete("/purchase-orders/{po_number}/lines/{line_id}")
+async def remove_purchase_order_line(po_number: str, line_id: int):
+    """Delete a draft PO line. **lpg-admin only.** 409 if sent."""
+    if not is_admin_service():
+        return JSONResponse(status_code=404, content={"error": "not found"})
+    return _run_po_line_op(lambda conn: delete_po_line(conn, po_number, line_id))
 
 
 @app.get("/purchase-orders/{po_number}/pdf")

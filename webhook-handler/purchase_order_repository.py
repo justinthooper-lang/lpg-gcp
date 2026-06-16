@@ -21,6 +21,7 @@ three-way-match join key per ADR-0009, falling back to the internal order id.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 
 from purchase_order_builder import (
     Component,
@@ -219,6 +220,7 @@ def write_purchase_order(conn, po: PurchaseOrder) -> PurchaseOrderWriteResult:
                 shift4_order_id = %s,
                 vendor_id       = %s,
                 status          = 'draft'::lpg.purchase_order_status,
+                manually_edited = false,
                 ship_name       = %s,
                 ship_company    = %s,
                 ship_street     = %s,
@@ -457,3 +459,213 @@ def purchase_order_to_dict(
         "line_count": result.line_count,
         "unpriced_skus": list(result.unpriced_skus),
     }
+
+
+# --------------------------------------------------------------------------- #
+# Editable draft-PO line operations (ADR-0022)
+# --------------------------------------------------------------------------- #
+class POLineError(Exception):
+    """A line edit was rejected for bad shape/values (maps to HTTP 422)."""
+
+
+class PurchaseOrderImmutable(Exception):
+    """A sent PO cannot be edited (maps to HTTP 409)."""
+
+
+def _po_header(conn, po_number: str):
+    """Return (purchase_order_id, status, manually_edited) or None."""
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT purchase_order_id, status, manually_edited "
+        "FROM lpg.purchase_orders WHERE po_number = %s",
+        (po_number,),
+    )
+    return cur.fetchone()
+
+
+def _require_editable(conn, po_number: str):
+    """Header for a PO that exists and is still a draft. Raises otherwise."""
+    header = _po_header(conn, po_number)
+    if header is None:
+        raise PurchaseOrderError(f"Purchase order {po_number} not found")
+    if header[1] == "sent":
+        raise PurchaseOrderImmutable(
+            f"PO {po_number} has been sent and cannot be edited"
+        )
+    return header
+
+
+def _mark_edited(conn, purchase_order_id: int) -> None:
+    conn.cursor().execute(
+        "UPDATE lpg.purchase_orders SET manually_edited = true "
+        "WHERE purchase_order_id = %s",
+        (purchase_order_id,),
+    )
+
+
+def _money(value, label: str) -> Decimal | None:
+    if value is None or value == "":
+        return None
+    try:
+        return Decimal(str(value))
+    except (ArithmeticError, ValueError):
+        raise POLineError(f"{label} must be a number")
+
+
+def _normalize_line(is_fee: bool, vendor_sku_code, description,
+                    quantity, unit_cost, amount) -> dict:
+    """Validate a line payload into column values, honoring the shape guard.
+
+    Product line: vendor_sku_code + quantity(>0) + unit_cost(>=0), no amount.
+    Fee line:     description (label) + amount(>=0), no product fields.
+    """
+    if is_fee:
+        desc = (description or "").strip()
+        if not desc:
+            raise POLineError("a fee line needs a description (the fee label)")
+        amt = _money(amount, "amount")
+        if amt is None:
+            raise POLineError("a fee line needs an amount")
+        if amt < 0:
+            raise POLineError("amount must be >= 0")
+        return {"vendor_sku_code": None, "description": desc,
+                "quantity": None, "unit_cost": None, "amount": amt}
+
+    code = (vendor_sku_code or "").strip()
+    if not code:
+        raise POLineError("a product line needs a Product ID")
+    if quantity is None or str(quantity).strip() == "":
+        raise POLineError("a product line needs a quantity")
+    try:
+        qty = int(quantity)
+    except (TypeError, ValueError):
+        raise POLineError("quantity must be a whole number")
+    if qty <= 0:
+        raise POLineError("quantity must be > 0")
+    cost = _money(unit_cost, "unit cost")
+    if cost is None:
+        raise POLineError("a product line needs a unit cost")
+    if cost < 0:
+        raise POLineError("unit cost must be >= 0")
+    return {"vendor_sku_code": code, "description": (description or "").strip() or None,
+            "quantity": qty, "unit_cost": cost, "amount": None}
+
+
+def po_editable_state(conn, po_number: str) -> dict | None:
+    """JSON-safe editable view: header status/flag + lines WITH ids + total.
+
+    Returns None if the PO does not exist.
+    """
+    header = _po_header(conn, po_number)
+    if header is None:
+        return None
+    purchase_order_id, status, manually_edited = header
+
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT purchase_order_line_id, is_fee, sort_order, vendor_sku_code,
+               description, quantity, unit_cost, amount
+        FROM lpg.purchase_order_lines
+        WHERE purchase_order_id = %s
+        ORDER BY sort_order, purchase_order_line_id
+        """,
+        (purchase_order_id,),
+    )
+    lines = []
+    total = Decimal("0")
+    for (line_id, is_fee, sort_order, code, desc, qty, unit_cost, amount) in cur.fetchall():
+        line_total = amount if is_fee else (qty * unit_cost)
+        total += line_total or Decimal("0")
+        lines.append({
+            "purchase_order_line_id": line_id,
+            "is_fee": is_fee,
+            "sort_order": sort_order,
+            "vendor_sku_code": code,
+            "description": desc,
+            "quantity": qty,
+            "unit_cost": str(unit_cost) if unit_cost is not None else None,
+            "amount": str(amount) if amount is not None else None,
+            "line_total": str(line_total) if line_total is not None else None,
+        })
+
+    return {
+        "po_number": po_number,
+        "status": status,
+        "manually_edited": manually_edited,
+        "lines": lines,
+        "total": str(total),
+    }
+
+
+def add_po_line(conn, po_number: str, *, is_fee: bool, vendor_sku_code=None,
+                description=None, quantity=None, unit_cost=None, amount=None) -> dict:
+    """Append a line to a draft PO and mark it manually edited."""
+    purchase_order_id = _require_editable(conn, po_number)[0]
+    cols = _normalize_line(is_fee, vendor_sku_code, description, quantity, unit_cost, amount)
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT COALESCE(MAX(sort_order), 0) + 1 FROM lpg.purchase_order_lines "
+        "WHERE purchase_order_id = %s",
+        (purchase_order_id,),
+    )
+    next_sort = cur.fetchone()[0]
+    cur.execute(
+        """
+        INSERT INTO lpg.purchase_order_lines (
+            purchase_order_id, is_fee, vendor_sku_id, vendor_sku_code,
+            description, quantity, unit_cost, amount, sort_order
+        ) VALUES (%s, %s, NULL, %s, %s, %s, %s, %s, %s)
+        """,
+        (purchase_order_id, is_fee, cols["vendor_sku_code"], cols["description"],
+         cols["quantity"], cols["unit_cost"], cols["amount"], next_sort),
+    )
+    _mark_edited(conn, purchase_order_id)
+    return po_editable_state(conn, po_number)
+
+
+def update_po_line(conn, po_number: str, line_id: int, *, is_fee=None,
+                   vendor_sku_code=None, description=None, quantity=None,
+                   unit_cost=None, amount=None) -> dict:
+    """Replace a draft PO line's fields (full-shape edit) and mark edited."""
+    purchase_order_id = _require_editable(conn, po_number)[0]
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT is_fee FROM lpg.purchase_order_lines "
+        "WHERE purchase_order_line_id = %s AND purchase_order_id = %s",
+        (line_id, purchase_order_id),
+    )
+    row = cur.fetchone()
+    if row is None:
+        raise PurchaseOrderError(f"Line {line_id} not found on PO {po_number}")
+    effective_is_fee = row[0] if is_fee is None else bool(is_fee)
+    cols = _normalize_line(effective_is_fee, vendor_sku_code, description,
+                           quantity, unit_cost, amount)
+    cur.execute(
+        """
+        UPDATE lpg.purchase_order_lines SET
+            is_fee = %s, vendor_sku_id = NULL, vendor_sku_code = %s,
+            description = %s, quantity = %s, unit_cost = %s, amount = %s
+        WHERE purchase_order_line_id = %s AND purchase_order_id = %s
+        """,
+        (effective_is_fee, cols["vendor_sku_code"], cols["description"],
+         cols["quantity"], cols["unit_cost"], cols["amount"],
+         line_id, purchase_order_id),
+    )
+    _mark_edited(conn, purchase_order_id)
+    return po_editable_state(conn, po_number)
+
+
+def delete_po_line(conn, po_number: str, line_id: int) -> dict:
+    """Delete a draft PO line and mark the PO manually edited."""
+    purchase_order_id = _require_editable(conn, po_number)[0]
+    cur = conn.cursor()
+    cur.execute(
+        "DELETE FROM lpg.purchase_order_lines "
+        "WHERE purchase_order_line_id = %s AND purchase_order_id = %s",
+        (line_id, purchase_order_id),
+    )
+    if cur.rowcount == 0:
+        raise PurchaseOrderError(f"Line {line_id} not found on PO {po_number}")
+    _mark_edited(conn, purchase_order_id)
+    return po_editable_state(conn, po_number)
