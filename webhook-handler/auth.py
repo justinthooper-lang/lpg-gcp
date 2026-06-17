@@ -74,13 +74,21 @@ def is_admin_service() -> bool:
 
 
 def is_authorized_read(received_token: str | None) -> bool:
-    """Authorization gate for read endpoints.
+    """Authorization gate for read endpoints. **Admin-only in production.**
 
-    Read endpoints are dual-served: on `lpg-admin` (IAM-protected) and
-    on `webhook-handler` (public, URL-token protected). This helper
-    centralizes the per-service decision so route handlers don't have
-    to care which service they're running on.
+    - lpg-admin: the Google frontend already verified the caller via IAM.
+    - Local dev (K_SERVICE unset): allowed, so the app is testable locally.
+    - Any other deployed service (e.g. the public webhook-handler): DENIED.
+      Read routes aren't registered there anyway; this is defense-in-depth so a
+      future bare-decorator route can't silently become token-accessible. The
+      Shift4 URL token (which leaks into logs/history) is NOT a read credential.
+
+    `received_token` is retained for signature compatibility but no longer
+    grants read access on a deployed non-admin service.
     """
     if is_admin_service():
         return True
-    return verify_token(received_token)
+    if os.getenv("K_SERVICE") is None:
+        # Local development: no Cloud Run identity present.
+        return True
+    return False
