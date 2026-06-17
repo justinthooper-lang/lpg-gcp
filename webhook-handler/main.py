@@ -1106,3 +1106,153 @@ async def send_purchase_order(po_number: str, request: Request):
         "mailbox": mailbox,
         "archived_pdf": pdf_uri,
     }
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard_html(request: Request):
+    """Margin dashboard: MTD/YTD revenue + profit and undercharged-shipping.
+
+    Reads lpg.v_order_margins (ADR-0024). Same token auth as the other read
+    routes. Margins are invoice-true; orders without a matched invoice are
+    reported as 'cost pending' and excluded from profit/shipping aggregates.
+    """
+    received_token = request.query_params.get("token")
+    if not is_authorized_read(received_token):
+        return JSONResponse(status_code=401, content={"error": "invalid or missing token"})
+
+    try:
+        with get_connection() as conn:
+            cur = conn.cursor()
+            try:
+                # Period rollups: current month (MTD) and current year (YTD).
+                # Revenue counts all orders; profit/shipping only invoice-matched.
+                cur.execute(
+                    """
+                    WITH m AS (SELECT * FROM lpg.v_order_margins)
+                    SELECT
+                        period,
+                        count(*)                                   AS orders,
+                        count(*) FILTER (WHERE has_invoice)        AS matched,
+                        count(*) FILTER (WHERE NOT has_invoice)    AS pending,
+                        coalesce(sum(grand_total), 0)              AS revenue,
+                        coalesce(sum(grand_total) FILTER (WHERE has_invoice), 0) AS matched_revenue,
+                        coalesce(sum(profit) FILTER (WHERE has_invoice), 0)   AS profit,
+                        count(*) FILTER (WHERE shipping_differential < 0)     AS undercharged
+                    FROM (
+                        SELECT *, 'YTD' AS period FROM m
+                          WHERE order_date >= date_trunc('year', now())
+                        UNION ALL
+                        SELECT *, 'MTD' AS period FROM m
+                          WHERE order_date >= date_trunc('month', now())
+                    ) x
+                    GROUP BY period
+                    """
+                )
+                periods = {r[0]: r for r in cur.fetchall()}
+
+                # Undercharged-shipping detail: orders where we ate freight.
+                cur.execute(
+                    """
+                    SELECT shift4_order_id, invoice_number, order_date::date, grand_total,
+                           shipping_cost, actual_freight, shipping_differential, profit
+                    FROM lpg.v_order_margins
+                    WHERE shipping_differential < 0
+                      AND order_date >= date_trunc('year', now())
+                    ORDER BY shipping_differential ASC
+                    LIMIT 200
+                    """
+                )
+                undercharged = cur.fetchall()
+            finally:
+                cur.close()
+    except Exception as exc:
+        log.error("dashboard_db_error", error=str(exc))
+        return JSONResponse(status_code=500, content={"error": "database error"})
+
+    def card(period_key, label):
+        r = periods.get(period_key)
+        if not r:
+            return f'<div class="card"><strong>{label}</strong><br><span class="meta">no data</span></div>'
+        _, orders, matched, pending, revenue, matched_revenue, profit, undercharged_n = r
+        # Margin % is over MATCHED orders only (revenue and profit both restricted
+        # to orders we actually have a supplier invoice for) so it isn't diluted by
+        # pending orders that have revenue but no cost yet.
+        margin_pct = (float(profit) / float(matched_revenue) * 100) if matched_revenue else 0
+        return f"""
+        <div class="card">
+            <strong>{label}</strong>
+            <table class="kpi">
+                <tr><td>Revenue</td><td>${revenue:,.2f}</td></tr>
+                <tr><td>Profit <span class="meta">(matched)</span></td><td>${profit:,.2f}</td></tr>
+                <tr><td>Margin <span class="meta">(of matched rev)</span></td><td>{margin_pct:.1f}%</td></tr>
+                <tr><td>Matched revenue</td><td>${matched_revenue:,.2f}</td></tr>
+                <tr><td>Orders</td><td>{orders} <span class="meta">({matched} matched, {pending} pending)</span></td></tr>
+                <tr><td>Undercharged shipping</td><td>{undercharged_n}</td></tr>
+            </table>
+        </div>
+        """
+
+    rows_html = "".join(
+        f"""
+        <tr>
+            <td><a href="/orders/{oid}.html">{inv or ''}</a></td>
+            <td>{od}</td>
+            <td style="text-align:right">${gt:,.2f}</td>
+            <td style="text-align:right">${sc:,.2f}</td>
+            <td style="text-align:right">${af:,.2f}</td>
+            <td style="text-align:right; color:#c0392b">${sd:,.2f}</td>
+            <td style="text-align:right">${pr:,.2f}</td>
+        </tr>
+        """
+        for (oid, inv, od, gt, sc, af, sd, pr) in undercharged
+    )
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Margins — LPG</title>
+    <style>
+        body {{ font-family: -apple-system, system-ui, sans-serif; max-width: 1000px; margin: 2em auto; padding: 0 1em; }}
+        h1 {{ font-weight: 500; margin-bottom: 0; }}
+        h2 {{ font-weight: 500; font-size: 1.1em; margin-top: 2em; border-bottom: 1px solid #ddd; padding-bottom: 4px; }}
+        .meta {{ color: #888; font-size: 0.9em; }}
+        .cards {{ display: flex; gap: 16px; margin-top: 1em; }}
+        .card {{ flex: 1; border: 1px solid #e0e0e0; border-radius: 6px; padding: 14px 18px; }}
+        table.kpi {{ width: 100%; border-collapse: collapse; margin-top: 8px; }}
+        table.kpi td {{ padding: 4px 0; }}
+        table.kpi td:last-child {{ text-align: right; font-variant-numeric: tabular-nums; font-weight: 500; }}
+        table {{ width: 100%; border-collapse: collapse; }}
+        th, td {{ padding: 8px 12px; border-bottom: 1px solid #eee; text-align: left; }}
+        th {{ background: #f5f5f5; font-weight: 500; }}
+        td {{ font-variant-numeric: tabular-nums; }}
+    </style>
+</head>
+<body>
+    <h1>Margins</h1>
+    <p class="meta">Invoice-true margins from lpg.v_order_margins &middot; profit = revenue &minus; supplier cost &minus; actual freight</p>
+
+    <div class="cards">
+        {card('MTD', 'This Month')}
+        {card('YTD', 'Year to Date')}
+    </div>
+
+    <h2>Undercharged shipping &mdash; YTD ({len(undercharged)})</h2>
+    <p class="meta">Orders where the freight we paid exceeded the shipping we charged (most negative first).</p>
+    <table>
+        <thead>
+            <tr>
+                <th>Order</th><th>Date</th>
+                <th style="text-align:right">Grand Total</th>
+                <th style="text-align:right">Ship Charged</th>
+                <th style="text-align:right">Actual Freight</th>
+                <th style="text-align:right">Ship Diff</th>
+                <th style="text-align:right">Profit</th>
+            </tr>
+        </thead>
+        <tbody>{rows_html or '<tr><td colspan="7" class="meta">none</td></tr>'}</tbody>
+    </table>
+</body>
+</html>"""
+
+    return HTMLResponse(content=html)
