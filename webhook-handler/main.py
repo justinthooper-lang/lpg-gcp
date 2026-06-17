@@ -1318,13 +1318,16 @@ async def dashboard_html(request: Request):
                     WITH m AS (SELECT * FROM lpg.v_order_margins)
                     SELECT
                         period,
-                        count(*)                                   AS orders,
-                        count(*) FILTER (WHERE has_invoice)        AS matched,
-                        count(*) FILTER (WHERE NOT has_invoice)    AS pending,
-                        coalesce(sum(grand_total), 0)              AS revenue,
-                        coalesce(sum(grand_total) FILTER (WHERE has_invoice), 0) AS matched_revenue,
-                        coalesce(sum(profit) FILTER (WHERE has_invoice), 0)   AS profit,
-                        count(*) FILTER (WHERE shipping_differential < 0)     AS undercharged
+                        count(*)                                              AS orders,
+                        count(*) FILTER (WHERE margin_source = 'invoice')      AS n_invoice,
+                        count(*) FILTER (WHERE margin_source = 'manual')       AS n_manual,
+                        count(*) FILTER (WHERE margin_source = 'none')         AS n_none,
+                        coalesce(sum(grand_total), 0)                          AS revenue,
+                        coalesce(sum(grand_total) FILTER (WHERE margin_source <> 'none'), 0) AS costed_revenue,
+                        coalesce(sum(profit) FILTER (WHERE margin_source <> 'none'), 0)      AS profit,
+                        coalesce(sum(profit) FILTER (WHERE margin_source = 'invoice'), 0)    AS profit_invoice,
+                        coalesce(sum(profit) FILTER (WHERE margin_source = 'manual'), 0)     AS profit_manual,
+                        count(*) FILTER (WHERE shipping_differential < 0)      AS undercharged
                     FROM (
                         SELECT *, 'YTD' AS period FROM m
                           WHERE order_date >= date_trunc('year', now())
@@ -1360,20 +1363,24 @@ async def dashboard_html(request: Request):
         r = periods.get(period_key)
         if not r:
             return f'<div class="card"><strong>{label}</strong><br><span class="meta">no data</span></div>'
-        _, orders, matched, pending, revenue, matched_revenue, profit, undercharged_n = r
-        # Margin % is over MATCHED orders only (revenue and profit both restricted
-        # to orders we actually have a supplier invoice for) so it isn't diluted by
-        # pending orders that have revenue but no cost yet.
-        margin_pct = (float(profit) / float(matched_revenue) * 100) if matched_revenue else 0
+        (_, orders, n_invoice, n_manual, n_none, revenue, costed_revenue,
+         profit, profit_invoice, profit_manual, undercharged_n) = r
+        # Margin % is over COSTED orders only (invoice + manual) — the orders we
+        # have a cost basis for — so it isn't diluted by pending orders that have
+        # revenue but no cost yet. Profit counts invoice + manual; the split below
+        # shows how much is invoice-true vs hand-entered.
+        margin_pct = (float(profit) / float(costed_revenue) * 100) if costed_revenue else 0
+        manual_note = (f' <span class="meta">(incl. ${profit_manual:,.2f} manual)</span>'
+                       if n_manual else '')
         return f"""
         <div class="card">
             <strong>{label}</strong>
             <table class="kpi">
                 <tr><td>Revenue</td><td>${revenue:,.2f}</td></tr>
-                <tr><td>Profit <span class="meta">(matched)</span></td><td>${profit:,.2f}</td></tr>
-                <tr><td>Margin <span class="meta">(of matched rev)</span></td><td>{margin_pct:.1f}%</td></tr>
-                <tr><td>Matched revenue</td><td>${matched_revenue:,.2f}</td></tr>
-                <tr><td>Orders</td><td>{orders} <span class="meta">({matched} matched, {pending} pending)</span></td></tr>
+                <tr><td>Profit{manual_note}</td><td>${profit:,.2f}</td></tr>
+                <tr><td>Margin <span class="meta">(of costed rev)</span></td><td>{margin_pct:.1f}%</td></tr>
+                <tr><td>Costed revenue</td><td>${costed_revenue:,.2f}</td></tr>
+                <tr><td>Orders</td><td>{orders} <span class="meta">({n_invoice} invoice, {n_manual} manual, {n_none} pending)</span></td></tr>
                 <tr><td>Undercharged shipping</td><td>{undercharged_n}</td></tr>
             </table>
         </div>

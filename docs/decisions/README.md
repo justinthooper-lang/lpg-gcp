@@ -40,6 +40,7 @@ the system looks the way it does.
 | [0023](./0023-shipments-surrogate-pk.md) | Surrogate primary key for shift4.shipments (ShipmentID=0 collision fix) | Accepted |
 | [0024](./0024-order-margins-direct-match.md) | Order-level margins via direct order↔invoice match (no PO); SF cost migration | Accepted |
 | [0025](./0025-manual-margin-entry.md) | Manual margin entry (gap-filler) for orders without a Crown invoice | Accepted |
+| [0026](./0026-security-review.md) | Security review: dashboard exposure fix + read-auth hardening; clean IAM/secrets/mail/PII | Accepted |
 
 ## How to add a new ADR
 
