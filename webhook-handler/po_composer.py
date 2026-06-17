@@ -41,10 +41,32 @@ PO_COMPOSER_TEMPLATE = r"""
   #po-lines td:nth-child(6), #po-lines th:nth-child(6) { text-align: right; }
   .po-preview { width: 100%; height: 540px; border: 1px solid #ddd;
                 border-radius: 4px; margin-top: 12px; }
+  /* --- PO modal --- */
+  #po-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+                      display: none; align-items: flex-start; justify-content: center;
+                      z-index: 1000; padding: 4vh 16px; overflow-y: auto; }
+  #po-modal-overlay.open { display: flex; }
+  #po-modal { background: #fff; border-radius: 8px; width: 100%; max-width: 820px;
+              padding: 20px 24px 28px; box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+              position: relative; }
+  #po-modal-close { position: absolute; top: 12px; right: 14px; border: none;
+                    background: none; font-size: 1.6em; line-height: 1; cursor: pointer;
+                    color: #888; }
+  #po-modal-close:hover { color: #222; }
+  .po-open-actions { margin: 8px 0 4px; }
 </style>
 
 <h2>Purchase Order</h2>
-<div id="po-section">
+<div class="po-open-actions">
+  <button class="btn btn-primary" onclick="openPOModal()">Open PO editor</button>
+  <span id="po-open-hint" class="meta"></span>
+</div>
+
+<div id="po-modal-overlay" onclick="if(event.target===this)closePOModal()">
+ <div id="po-modal" role="dialog" aria-modal="true" aria-label="Purchase Order editor">
+  <button id="po-modal-close" onclick="closePOModal()" aria-label="Close">&times;</button>
+  <h2 style="margin-top:0">Purchase Order</h2>
+  <div id="po-section">
   <div class="po-actions">
     <button class="btn btn-primary" id="po-gen-btn" onclick="generatePO(false)">Generate PO</button>
     <span id="po-status" class="meta"></span>
@@ -69,10 +91,24 @@ PO_COMPOSER_TEMPLATE = r"""
     <iframe class="po-preview" id="po-preview" title="PO PDF preview"></iframe>
   </div>
 </div>
+ </div>
+</div>
 
 <script>
 const ORDER_ID = "__ORDER_ID__";
 let currentPO = null;   // { po_number, status, manually_edited }
+
+function openPOModal() {
+  document.getElementById("po-modal-overlay").classList.add("open");
+  document.body.style.overflow = "hidden";
+}
+function closePOModal() {
+  document.getElementById("po-modal-overlay").classList.remove("open");
+  document.body.style.overflow = "";
+}
+document.addEventListener("keydown", function (e) {
+  if (e.key === "Escape") closePOModal();
+});
 
 function fmt(n) { return (n === null || n === undefined || n === "") ? "" : "$" + Number(n).toFixed(2); }
 
