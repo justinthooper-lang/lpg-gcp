@@ -76,22 +76,20 @@ a false loss when the margin view joined the invoice to the wrong row.
 - Validated against the source: PO31990 computes profit $392.46 / shipping-diff
   $29.91, matching both the Salesforce export and the actual Crown invoice PDF
   (226714) to the cent.
-- `customer_po_number` provenance now spans two shapes: SF-migrated rows store it
-  **with** the `PO` prefix (from `Shift4Shop Order Number`), while real Crown-PDF
-  ingestion stores it **without**. The match works today because order
-  `invoice_number` carries the `PO` prefix too — but a real Crown invoice ingested
-  for the same PO would store `customer_po_number = '31990'` and **not** match
-  `invoice_number = 'PO31990'`. **Follow-up: normalize the join key** (strip/áadd
-  the `PO` prefix consistently, or match on a normalized expression) before
-  relying on live Crown invoices to supersede the SF backstops.
+- Join-key format is consistent across all three sources (verified 2026-06-17 by
+  querying stored values): `shift4.orders.invoice_number` is `PO`-prefixed in
+  314/314 rows; `lpg.vendor_invoices.customer_po_number` is `PO`-prefixed in all
+  287 rows — both the 272 SF-migrated rows AND the 15 real Crown-ingested rows.
+  An earlier draft of this ADR worried that real Crown invoices stored a bare
+  number (`31990`) because the invoice's human-readable label reads that way, but
+  the Crown parser regex (`\b(PO\d+)\b`) captures the `PO`-prefixed token from
+  the PDF text, so stored values agree. **No normalization is required**, and live
+  Crown invoices will match orders and supersede the SF backstops as designed.
 - SF-migrated rows are a one-time historical import, not Crown-PDF-sourced; the
   `sf-migration:` / `sf:` markers keep the two provenances distinguishable.
 
 ## Future work
 
-- Normalize the `PO`-prefix mismatch between SF-migrated and Crown-ingested
-  `customer_po_number` (see Consequences) so live Crown invoices match and
-  supersede the backstops.
 - Optionally fold expected-vs-actual variance (PO cost vs invoice cost) into the
   view for forward orders that do have POs.
 
