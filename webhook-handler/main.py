@@ -994,10 +994,6 @@ if is_admin_service() or _K_SERVICE is None:
     app.add_api_route(
         "/orders/{order_id:int}/margin", save_order_margin, methods=["POST"],
     )
-    app.add_api_route(
-        "/dashboard", dashboard_html, methods=["GET"],
-        response_class=HTMLResponse,
-    )
 
 
 @app.get("/webhooks/shift4/order-created")
@@ -1447,3 +1443,12 @@ async def dashboard_html(request: Request):
 </html>"""
 
     return HTMLResponse(content=html)
+
+
+# Registered after definition. dashboard_html itself refuses non-admin callers,
+# and the route is gated so it does not serve on the public webhook-handler.
+if is_admin_service() or _K_SERVICE is None:
+    app.add_api_route(
+        "/dashboard", dashboard_html, methods=["GET"],
+        response_class=HTMLResponse,
+    )
