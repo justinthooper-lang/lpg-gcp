@@ -994,6 +994,10 @@ if is_admin_service() or _K_SERVICE is None:
     app.add_api_route(
         "/orders/{order_id:int}/margin", save_order_margin, methods=["POST"],
     )
+    app.add_api_route(
+        "/dashboard", dashboard_html, methods=["GET"],
+        response_class=HTMLResponse,
+    )
 
 
 @app.get("/webhooks/shift4/order-created")
@@ -1295,7 +1299,6 @@ async def send_purchase_order(po_number: str, request: Request):
     }
 
 
-@app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_html(request: Request):
     """Margin dashboard: MTD/YTD revenue + profit and undercharged-shipping.
 
@@ -1303,9 +1306,10 @@ async def dashboard_html(request: Request):
     routes. Margins are invoice-true; orders without a matched invoice are
     reported as 'cost pending' and excluded from profit/shipping aggregates.
     """
-    received_token = request.query_params.get("token")
-    if not is_authorized_read(received_token):
-        return JSONResponse(status_code=401, content={"error": "invalid or missing token"})
+    # Admin-only: this exposes revenue/cost/margin. Registered only on lpg-admin
+    # (IAM-protected) / local dev; refuses if somehow reached on another service.
+    if not is_admin_service() and os.getenv("K_SERVICE") is not None:
+        return JSONResponse(status_code=404, content={"error": "not found"})
 
     try:
         with get_connection() as conn:
