@@ -35,6 +35,7 @@ from graph_mail import GraphSendError, send_purchase_order_email
 from gcs_storage import GcsStorageError, upload_po_pdf
 from po_composer import PO_COMPOSER_TEMPLATE
 from order_overrides_form import ORDER_OVERRIDES_TEMPLATE
+from order_economics_form import ORDER_ECONOMICS_TEMPLATE
 from purchase_order_repository import (
     PurchaseOrderError,
     PurchaseOrderImmutable,
@@ -546,12 +547,13 @@ async def get_order_html(order_id: int, request: Request):
 
     composer_html = PO_COMPOSER_TEMPLATE.replace("__ORDER_ID__", str(order_id))
     overrides_html = ORDER_OVERRIDES_TEMPLATE.replace("__ORDER_ID__", str(order_id))
+    economics_html = ORDER_ECONOMICS_TEMPLATE.replace("__ORDER_ID__", str(order_id))
 
     html = f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Order {o['shift4_order_id']} — LPG</title>
+    <title>{o['invoice_number'] or ('Order ' + str(o['shift4_order_id']))} — LPG</title>
     <style>
         body {{ font-family: -apple-system, system-ui, sans-serif; max-width: 900px; margin: 2em auto; padding: 0 1em; }}
         h1 {{ font-weight: 500; margin-bottom: 0; }}
@@ -569,8 +571,8 @@ async def get_order_html(order_id: int, request: Request):
 </head>
 <body>
     <p class="back"><a href="javascript:history.back()">&larr; Back</a></p>
-    <h1>Order {o['shift4_order_id']}</h1>
-    <p class="meta">{o['invoice_number'] or ''} &middot; {o['order_status']} &middot; {o['order_date'] or ''}</p>
+    <h1>{o['invoice_number'] or ('Order ' + str(o['shift4_order_id']))}</h1>
+    <p class="meta">{o['order_status']} &middot; {o['order_date'] or ''} &middot; <span title="Shift4 internal order id">#{o['shift4_order_id']}</span></p>
 
     <h2>Customer</h2>
     <p>
@@ -610,6 +612,8 @@ async def get_order_html(order_id: int, request: Request):
     {f'<h2>Comments</h2><p>{o["comments"]}</p>' if o['comments'] else ''}
 
     {overrides_html}
+
+    {economics_html}
 
     {composer_html}
 </body>
@@ -780,6 +784,183 @@ async def save_order_overrides(order_id: int, request: Request):
     return payload
 
 
+def _margin_payload(cur, order_id: int):
+    """Effective margin (from v_order_margins) + any manual entry for an order.
+
+    Returns None if the order doesn't exist. margin_source is 'invoice'
+    (locked — real Crown invoice), 'manual', or 'none' (editable). The manual_*
+    fields echo what's stored in lpg.order_margin_manual (may differ from the
+    effective values when an invoice supersedes them).
+    """
+    cur.execute(
+        """
+        SELECT m.margin_source, m.has_invoice, m.has_manual,
+               m.grand_total, m.shipping_cost,
+               m.supplier_cost, m.actual_freight,
+               m.profit, m.shipping_differential,
+               mm.manual_supplier_cost, mm.manual_freight, mm.note
+        FROM lpg.v_order_margins m
+        LEFT JOIN lpg.order_margin_manual mm ON mm.shift4_order_id = m.shift4_order_id
+        WHERE m.shift4_order_id = %s
+        """,
+        (order_id,),
+    )
+    row = cur.fetchone()
+    if row is None:
+        return None
+
+    def _f(v):
+        return None if v is None else float(v)
+
+    return {
+        "shift4_order_id": order_id,
+        "margin_source": row[0],
+        "has_invoice": row[1],
+        "has_manual": row[2],
+        "editable": (row[0] != "invoice"),   # invoice always wins; manual locked out
+        "grand_total": _f(row[3]),
+        "shipping_cost": _f(row[4]),
+        "supplier_cost": _f(row[5]),
+        "actual_freight": _f(row[6]),
+        "profit": _f(row[7]),
+        "shipping_differential": _f(row[8]),
+        "manual_supplier_cost": _f(row[9]),
+        "manual_freight": _f(row[10]),
+        "note": row[11],
+    }
+
+
+async def get_order_margin(order_id: int, request: Request):
+    """Effective margin + manual entry for an order (read). Same auth as reads."""
+    if not is_authorized_read(request.query_params.get("token")):
+        return JSONResponse(
+            status_code=401, content={"error": "invalid or missing token"}
+        )
+    try:
+        with get_connection() as conn:
+            cur = conn.cursor()
+            try:
+                payload = _margin_payload(cur, order_id)
+            finally:
+                cur.close()
+    except Exception as exc:
+        log.error("order_margin_read_error", error=str(exc))
+        return JSONResponse(status_code=500, content={"error": "database error"})
+    if payload is None:
+        return JSONResponse(
+            status_code=404, content={"error": f"order {order_id} not found"}
+        )
+    return payload
+
+
+async def save_order_margin(order_id: int, request: Request):
+    """Upsert (or clear) an order's MANUAL margin entry. **lpg-admin only.**
+
+    Gap-filler only (ADR-0025): refuses to write when the order already has a
+    matched Crown invoice (margin_source='invoice') — invoice-true data is never
+    overridden. Writes both manual_supplier_cost and manual_freight together (a
+    margin needs both); blank/omitted = clear the manual row entirely.
+    """
+    if not is_admin_service():
+        return JSONResponse(status_code=404, content={"error": "not found"})
+
+    try:
+        body = json.loads(await request.body() or b"{}")
+    except json.JSONDecodeError as exc:
+        return JSONResponse(
+            status_code=422, content={"error": f"invalid request body: {exc}"}
+        )
+
+    def _num(v):
+        if v is None or str(v).strip() == "":
+            return None
+        try:
+            n = float(v)
+        except (TypeError, ValueError):
+            raise ValueError(f"not a number: {v!r}")
+        if n < 0:
+            raise ValueError("must be >= 0")
+        return n
+
+    try:
+        cost = _num(body.get("manual_supplier_cost"))
+        freight = _num(body.get("manual_freight"))
+    except ValueError as exc:
+        return JSONResponse(status_code=422, content={"error": str(exc)})
+
+    note = (str(body.get("note")).strip() or None) if body.get("note") else None
+    clear = cost is None and freight is None
+    # A partial entry (only one of the two) can't form a margin — reject it.
+    if not clear and (cost is None or freight is None):
+        return JSONResponse(
+            status_code=422,
+            content={"error": "both manual_supplier_cost and manual_freight are required"},
+        )
+
+    try:
+        with get_connection() as conn:
+            cur = conn.cursor()
+            try:
+                cur.execute(
+                    "SELECT 1 FROM shift4.orders WHERE shift4_order_id = %s",
+                    (order_id,),
+                )
+                if cur.fetchone() is None:
+                    return JSONResponse(
+                        status_code=404,
+                        content={"error": f"order {order_id} not found"},
+                    )
+
+                # Refuse to write a manual entry over a real invoice.
+                cur.execute(
+                    "SELECT margin_source FROM lpg.v_order_margins WHERE shift4_order_id = %s",
+                    (order_id,),
+                )
+                src_row = cur.fetchone()
+                if src_row and src_row[0] == "invoice" and not clear:
+                    return JSONResponse(
+                        status_code=409,
+                        content={"error": "order has a matched Crown invoice; manual entry not allowed"},
+                    )
+
+                if clear:
+                    cur.execute(
+                        "DELETE FROM lpg.order_margin_manual WHERE shift4_order_id = %s",
+                        (order_id,),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        INSERT INTO lpg.order_margin_manual
+                            (shift4_order_id, manual_supplier_cost, manual_freight, note)
+                        VALUES (%s, %s, %s, %s)
+                        ON CONFLICT (shift4_order_id) DO UPDATE SET
+                            manual_supplier_cost = EXCLUDED.manual_supplier_cost,
+                            manual_freight = EXCLUDED.manual_freight,
+                            note = EXCLUDED.note,
+                            updated_at = NOW()
+                        """,
+                        (order_id, cost, freight, note),
+                    )
+
+                payload = _margin_payload(cur, order_id)
+            finally:
+                cur.close()
+    except Exception as exc:
+        log.error("order_margin_write_error", error=str(exc), exc_info=True)
+        return JSONResponse(status_code=500, content={"error": "database error"})
+
+    actor = request.headers.get("X-Goog-Authenticated-User-Email") or "lpg-admin"
+    log.info(
+        "order_margin_saved",
+        shift4_order_id=order_id,
+        cleared=clear,
+        margin_source=payload["margin_source"],
+        actor=actor,
+    )
+    return payload
+
+
 # Read endpoints are registered only when running as the lpg-admin
 # service (IAM-protected) or locally for development (no K_SERVICE).
 # On webhook-handler in production, these routes simply don't exist —
@@ -806,6 +987,12 @@ if is_admin_service() or _K_SERVICE is None:
     )
     app.add_api_route(
         "/orders/{order_id:int}/overrides", save_order_overrides, methods=["POST"],
+    )
+    app.add_api_route(
+        "/orders/{order_id:int}/margin", get_order_margin, methods=["GET"],
+    )
+    app.add_api_route(
+        "/orders/{order_id:int}/margin", save_order_margin, methods=["POST"],
     )
 
 
