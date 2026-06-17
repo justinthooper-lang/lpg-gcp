@@ -7,6 +7,107 @@ this file tracks *what's next*, not *what was decided*.
 
 ## Recently completed (2026-06-16)
 
+- **ADR-0023 — shipments surrogate PK (production sync fix)** — every real Shift4
+  order had been silently dropping: Shift4 sends `ShipmentID=0` for all orders at
+  creation, so the single-column `shipments_pkey` collided (23505) on every order
+  after the first, rolling back the whole transaction (webhook 500 → Shift4
+  retries → all 500). Re-keyed `shift4.shipments` with a surrogate
+  `id GENERATED ALWAYS AS IDENTITY` PK, demoted `shift4_shipment_id` to plain
+  non-unique data, and dropped the vestigial unused `order_items.shift4_shipment_id`
+  FK column (migration `0008`). Migration-only — running `v0.20.0` was already
+  compatible, no redeploy. Applied to prod transactionally; verified end-to-end
+  (webhook Test → 200 `order_ingested`, 2 items / 2 shipments; row committed).
+
+- **Historical order backfill — DONE.** `scripts/backfill_orders_2026.py` (reuses
+  `ingest_order` + `Shift4OrderPayload`, idempotent) loaded the full 2026 window:
+  **312 orders ingested, 0 errors** out of 703 fetched (389 skip_status —
+  cancelled/incomplete; 2 skip_quote). ~$166K 2026 revenue, monthly rollup sane.
+  314 shipments / 0 collisions — the surrogate PK proven at scale.
+  - REST API credentials now in Secret Manager: `shift4-private-key`
+    (`46fe…270c`), `shift4-token` (`9c7f…1b53`, the *store* token from the dev
+    portal's "Stores using this APP" — distinct from PrivateKey), `shift4-secure-url`
+    (`https://www.lamppostglobes.com`). Auth model: headers `PrivateKey` / `Token` /
+    `SecureUrl` to `apirest.3dcart.com/3dCartWebAPI/v1`. App "Claude" is Read-scope
+    incl. Orders; IP white-list empty; status Development (worked fine for reads).
+  - Retired the stale Vercel "PO Generation" webhook (duplicate Order-New consumer).
+
+---
+
+## Next up — Dashboard (foundation DONE; ready to build)
+
+Goal: **undercharged-shipping analysis** + revenue/profit (current month + YTD),
+on **invoice-true** cost (ADR-0024), in an IAM-protected `/dashboard` route in
+`lpg-admin` reading `lpg.v_order_margins`.
+
+Foundation complete (2026-06-17):
+- **ADR-0024 — direct order↔invoice margin match** (no PO). Margin key is
+  `orders.invoice_number = vendor_invoices.customer_po_number`.
+- **SF cost migration:** `scripts/backfill_vendor_invoices_from_sf.py` loaded 272
+  cost-bearing rows from the Salesforce export into `vendor_invoices` (marked
+  `graph_message_id='sf-migration:<PO>'`, `vendor_invoice_number='sf:<PO>'`).
+- **`lpg.v_order_margins`** (migration `0009`): profit = grand_total − supplier_cost
+  − actual_freight; shipping_differential = shipping_cost − actual_freight; prefers
+  real Crown invoices over `sf:` backstops; NULL margins where `has_invoice=false`.
+- **Synthetic test orders purged** (`shift4_order_id` 1 and 31990) — they were
+  colliding with real `invoice_number`s and faking a loss.
+- **Validated:** 314 orders / 284 invoice-true margins / 30 cost-pending;
+  ~$52.3K YTD profit on ~$166K revenue; 53 orders undercharged shipping.
+  PO31990 reconciles to the cent against the Salesforce export AND the Crown
+  invoice PDF (profit $392.46, shipping-diff $29.91).
+
+**Known follow-up before live Crown invoices supersede SF backstops:** normalize
+the `PO`-prefix mismatch — SF-migrated `customer_po_number` carries the `PO`
+prefix; real Crown-PDF ingestion stores it without. Match works today (order
+`invoice_number` has the prefix too) but a real Crown invoice for the same PO
+would store `'31990'` and not match `'PO31990'`. Normalize the join key.
+
+Dashboard build steps:
+1. `/dashboard` route in `lpg-admin` (IAM-protected) reading `v_order_margins`.
+2. Cards: MTD/YTD revenue + profit; undercharged-shipping list (shipping_diff < 0).
+3. Segment invoice-true vs cost-pending (`has_invoice`).
+
+**Housekeeping carried forward:**
+- Cloud SQL proxy running **plain** (swapped off `--auto-iam-authn` for migrations).
+  Restart with `--auto-iam-authn` for normal dev.
+- Then: finish editing-orders flow, then security review/button-up.
+
+---
+
+## Next up — Dashboard (BLOCKED on cost/freight data, by design) [SUPERSEDED 2026-06-17]
+
+Goal: **undercharged-shipping analysis** + revenue/profit (current month + YTD).
+Decision (2026-06-16): build on **true Crown-invoice cost**, not an estimate.
+
+**Blocker — the metrics aren't computable yet.** Of 313 backfilled 2026 orders:
+**1 has a PO, 0 are matched to a Crown invoice, 0 have freight.** Profit
+(`charged − invoice cost`) and the shipping differential
+(`orders.shipping_cost − vendor_invoices.freight_truck/ups`) both depend on the
+three-way match `orders.shift4_order_id → purchase_orders.shift4_order_id`, then
+`purchase_orders.po_number → vendor_invoices.customer_po_number`. That chain is
+essentially unpopulated for the historical orders.
+
+**Prereq before the dashboard:**
+1. Generate POs for the backfilled orders (PO-gen flow over the 313).
+2. Match the 12 ingested Crown invoices (and ongoing) to those POs
+   (`customer_po_number = po_number`) so product cost + `freight_truck/ups` land.
+3. *Then* build: undercharged-shipping (charged vs actual freight), revenue +
+   true profit (MTD/YTD). Recommended home: a `/dashboard` route in `lpg-admin`
+   (IAM-protected), consistent with the architecture.
+
+Fallback noted: `shift4.order_items.item_unit_cost_shift4` is 100% populated
+(367/367) — a usable *estimated* COGS proxy if an interim view is ever wanted,
+but explicitly **not** the invoice-true number the dashboard is meant to show.
+
+**Housekeeping carried forward:**
+- Delete synthetic webhook Test order `shift4_order_id=1` (fake 2016 date) before
+  it touches reporting. (Mind FK children in shift4.order_items / shipments.)
+- Cloud SQL proxy was left running **plain** (swapped off `--auto-iam-authn` to
+  apply migration 0008). Restart with `--auto-iam-authn` for normal dev.
+
+---
+
+## Recently completed (2026-06-16, earlier)
+
 - **ADR-0022 — editable draft purchase-order lines** — the draft PO is now the
   editable working document: add / edit / delete lines directly on
   `lpg.purchase_order_lines` before sending to Crown. The order and

@@ -37,6 +37,8 @@ the system looks the way it does.
 | [0020](./0020-cloud-run-script-managed.md) | Cloud Run stays script-managed; deploy scripts own the full service shape | Accepted |
 | [0021](./0021-order-field-overrides.md) | Order field corrections via an LPG-owned override overlay | Accepted |
 | [0022](./0022-editable-purchase-order-lines.md) | Editable draft purchase-order lines | Accepted |
+| [0023](./0023-shipments-surrogate-pk.md) | Surrogate primary key for shift4.shipments (ShipmentID=0 collision fix) | Accepted |
+| [0024](./0024-order-margins-direct-match.md) | Order-level margins via direct order↔invoice match (no PO); SF cost migration | Accepted |
 
 ## How to add a new ADR
 
